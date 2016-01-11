@@ -87,7 +87,8 @@ class DCGAN(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-        self.saver = tf.train.Saver()
+        self.make_summary_ops()
+        self.saver = tf.train.Saver(d_vars + g_vars)
 
     def train(self, config):
         """Train DCGAN"""
@@ -102,6 +103,8 @@ class DCGAN(object):
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
+        summary_op = tf.merge_all_summaries()
+        summary_writer = tf.train.SummaryWriter('summary', graph_def=self.sess.graph_def)
 
         try:
             # Training
@@ -120,6 +123,9 @@ class DCGAN(object):
                 print("Epoch: [%2d] [%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                     % (epoch, idx,
                         time.time() - start_time, errD_fake+errD_real, errG))
+                if counter % 2 == 0:
+                    summary_str = self.sess.run(summary_op)
+                    summary_writer.add_summary(summary_str, counter)
 
                 if np.mod(counter, 500) == 2:
                     self.save(config.checkpoint_dir, counter)
@@ -195,6 +201,15 @@ class DCGAN(object):
             h2 = conv_cond_concat(h2, yb)
 
             return tf.nn.sigmoid(deconv2d(h2, self.c_dim, name='g_h3'))
+
+    def make_summary_ops(self):
+        tf.image_summary('generator', self.G)
+        tf.image_summary('sketch', self.sketches)
+        tf.image_summary('images', self.images)
+        tf.scalar_summary('d_loss_fake', self.d_loss_fake)
+        tf.scalar_summary('d_loss_real', self.d_loss_real)
+        tf.scalar_summary('g_loss', self.g_loss)
+        tf.scalar_summary('d_loss', self.d_loss)
 
 
     def save(self, checkpoint_dir, step):
