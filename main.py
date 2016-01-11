@@ -13,9 +13,8 @@ flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 64, "The size of image to use (will be center cropped) [108]")
-flags.DEFINE_string("dataset", "celebA", "The name of dataset [celebA, mnist, lsun]")
-flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
-flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
+flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches", "Directory name to save the checkpoints [checkpoint]")
+flags.DEFINE_string("summary_dir", "summary_sketches", "Directory name to save the summaries [checkpoint]")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
 FLAGS = flags.FLAGS
 
@@ -24,8 +23,8 @@ def main(_):
 
     if not os.path.exists(FLAGS.checkpoint_dir):
         os.makedirs(FLAGS.checkpoint_dir)
-    if not os.path.exists(FLAGS.sample_dir):
-        os.makedirs(FLAGS.sample_dir)
+    if not os.path.exists(FLAGS.summary_dir):
+        os.makedirs(FLAGS.summary_dir)
 
     with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 

@@ -95,7 +95,7 @@ class DCGAN(object):
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
         self.make_summary_ops()
-        self.saver = tf.train.Saver(d_vars + g_vars)
+        self.saver = tf.train.Saver(self.d_vars + self.g_vars)
 
     def train(self, config):
         """Train DCGAN"""
@@ -111,7 +111,7 @@ class DCGAN(object):
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
         summary_op = tf.merge_all_summaries()
-        summary_writer = tf.train.SummaryWriter('summary', graph_def=self.sess.graph_def)
+        summary_writer = tf.train.SummaryWriter(config.summary_dir, graph_def=self.sess.graph_def)
 
         try:
             # Training
