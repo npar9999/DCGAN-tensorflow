@@ -11,7 +11,7 @@ def get_files(folder, file_regexp):
           files.append(os.path.join(root, filename))
   return sorted(files)
 
-def get_files_cached(folder, type, regexp, reload=True):
+def get_files_cached(folder, type, regexp, reload=False):
   f = os.path.join(folder, '{}_files.txt'.format(type))
   if os.path.isfile(f) and not reload:
     return open(f).readlines()

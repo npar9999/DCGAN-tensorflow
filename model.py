@@ -53,9 +53,9 @@ class DCGAN(object):
         self.g_bn1 = batch_norm(batch_size, name='g_bn1')
         self.g_bn2 = batch_norm(batch_size, name='g_bn2')
 
-        self.s_bn0 = batch_norm(batch_size, name='s_bn1')
-        self.s_bn1 = batch_norm(batch_size, name='s_bn2')
-        self.s_bn2 = batch_norm(batch_size, name='s_bn3')
+        self.s_bn1 = batch_norm(batch_size, name='s_bn1')
+        self.s_bn2 = batch_norm(batch_size, name='s_bn2')
+        self.s_bn3 = batch_norm(batch_size, name='s_bn3')
 
         if not self.y_dim:
             self.g_bn3 = batch_norm(batch_size, name='g_bn3')
@@ -71,7 +71,7 @@ class DCGAN(object):
         self.images = images
         self.sketches = sketches
 
-        self.G = self.generator(self.sketch)
+        self.G = self.generator(self.sketches, 1)
         self.D = self.discriminator(self.images)
 
         self.D_ = self.discriminator(self.G, reuse=True)
@@ -99,17 +99,17 @@ class DCGAN(object):
         tf.initialize_all_variables().run()
         counter = 1
         start_time = time.time()
-        batch_idxs = min(len(data), config.train_size)/config.batch_size
 
         coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
 
         try:
             # Training
             counter = 0
             while not coord.should_stop():
                 # Update D and G network
-                _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, d_loss_fake, d_loss_real, g_loss])
+                _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
+                                                                   self.d_loss_real, self.g_loss])
 
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                 #self.sess.run(g_optim)
@@ -117,8 +117,8 @@ class DCGAN(object):
                 print("errD:", errD_fake+errD_real, "errD_fake:", errD_fake, "errD_real", errD_real, "errG", errG)
 
                 counter += 1
-                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                    % (epoch, idx, batch_idxs,
+                print("Epoch: [%2d] [%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+                    % (epoch, idx,
                         time.time() - start_time, errD_fake+errD_real, errG))
 
                 if np.mod(counter, 500) == 2:
@@ -157,19 +157,18 @@ class DCGAN(object):
 
             return tf.nn.sigmoid(linear(h2, 1, 'd_h3_lin'))
 
-    def generator(self, sketches, y=None):
+    def generator(self, sketches, output_dimensions=3, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
-        s1 = lrelu(self.s_bn1(conv2d(s0, self.df_dim, name='g_s1_conv')))
-        s2 = lrelu(self.s_bn2(conv2d(s1, self.df_dim, name='g_s2_conv')))
-        s3 = lrelu(self.s_bn3(conv2d(s2, self.df_dim, name='g_s3_conv')))
-
+        s1 = lrelu(self.s_bn1(conv2d(s0, self.df_dim*2, name='g_s1_conv')))
+        s2 = lrelu(self.s_bn2(conv2d(s1, self.df_dim*4, name='g_s2_conv')))
+        s3 = lrelu(self.s_bn3(conv2d(s2, self.df_dim*8, name='g_s3_conv')))
         if not self.y_dim:
             # project `z` and reshape
-            h0 = tf.reshape(linear(s3, self.gf_dim*8*4*4, 'g_h0_lin'),
-                            [-1, 4, 4, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0))
+            # h0 = tf.reshape(linear(s3, self.gf_dim*8*4*4, 'g_h0_lin'),
+            #                 [-1, 4, 4, self.gf_dim * 8])
+            # h0 = tf.nn.relu(self.g_bn0(h0))
 
-            h1 = deconv2d(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
+            h1 = deconv2d(s3, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
             h1 = tf.nn.relu(self.g_bn1(h1))
 
             h2 = deconv2d(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
@@ -178,7 +177,7 @@ class DCGAN(object):
             h3 = deconv2d(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
             h3 = tf.nn.relu(self.g_bn3(h3))
 
-            h4 = deconv2d(h3, [self.batch_size, 64, 64, 3], name='g_h4')
+            h4 = deconv2d(h3, [self.batch_size, 64, 64, output_dimensions], name='g_h4')
 
             return tf.nn.tanh(h4)
         else:
