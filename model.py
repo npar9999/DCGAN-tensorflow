@@ -76,9 +76,9 @@ class DCGAN(object):
             self.G = self.generator(self.sketches, 1)
 
         with tf.variable_scope('discriminator') as scope:
-            self.D = self.discriminator(self.images)
+            self.D = self.discriminator(self.images, self.sketches)
 
-            self.D_ = self.discriminator(self.G, reuse=True)
+            self.D_ = self.discriminator(self.G, self.sketches, reuse=True)
 
         with tf.variable_scope('discriminator_loss') as scope:
             self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
@@ -141,12 +141,13 @@ class DCGAN(object):
             # When done, ask the threads to stop.
             coord.request_stop()
 
-    def discriminator(self, image, reuse=False, y=None):
+    def discriminator(self, image, sketches, reuse=False, y=None):
         if reuse:
             tf.get_variable_scope().reuse_variables()
 
         if not self.y_dim:
-            h0 = lrelu(conv2d(image, self.df_dim, name='d_h0_conv'))
+            concated = tf.concat(3, [image, sketches])
+            h0 = lrelu(conv2d(concated, self.df_dim, name='d_h0_conv'))
             h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv')))
             h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
             h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
