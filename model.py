@@ -71,16 +71,23 @@ class DCGAN(object):
         self.images = images
         self.sketches = sketches
 
-        self.G = self.generator(self.sketches, 1)
-        self.D = self.discriminator(self.images)
 
-        self.D_ = self.discriminator(self.G, reuse=True)
+        with tf.variable_scope('generator') as scope:
+            self.G = self.generator(self.sketches, 1)
 
-        self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
-        self.d_loss_fake = binary_cross_entropy_with_logits(tf.zeros_like(self.D_), self.D_)
-        self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
+        with tf.variable_scope('discriminator') as scope:
+            self.D = self.discriminator(self.images)
+
+            self.D_ = self.discriminator(self.G, reuse=True)
+
+        with tf.variable_scope('discriminator_loss') as scope:
+            self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
+            self.d_loss_fake = binary_cross_entropy_with_logits(tf.zeros_like(self.D_), self.D_)
+            self.d_loss = self.d_loss_real + self.d_loss_fake
+
+        with tf.variable_scope('generator_loss') as scope:
+            self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
                                                     
-        self.d_loss = self.d_loss_real + self.d_loss_fake
 
         t_vars = tf.trainable_variables()
 
@@ -120,9 +127,8 @@ class DCGAN(object):
                 print("errD:", errD_fake+errD_real, "errD_fake:", errD_fake, "errD_real", errD_real, "errG", errG)
 
                 counter += 1
-                print("Epoch: [%2d] [%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                    % (epoch, idx,
-                        time.time() - start_time, errD_fake+errD_real, errG))
+                print("Step: [%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+                    % (counter, time.time() - start_time, errD_fake+errD_real, errG))
                 if counter % 2 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
