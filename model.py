@@ -174,6 +174,8 @@ class DCGAN(object):
         s1 = lrelu(self.s_bn1(conv2d(s0, self.df_dim*2, name='g_s1_conv')))
         s2 = lrelu(self.s_bn2(conv2d(s1, self.df_dim*4, name='g_s2_conv')))
         s3 = lrelu(self.s_bn3(conv2d(s2, self.df_dim*8, name='g_s3_conv')))
+        self.abstract_representation = s3
+
         if not self.y_dim:
             # project `z` and reshape
             # h0 = tf.reshape(linear(s3, self.gf_dim*8*4*4, 'g_h0_lin'),
@@ -216,6 +218,7 @@ class DCGAN(object):
         tf.scalar_summary('d_loss_real', self.d_loss_real)
         tf.scalar_summary('g_loss', self.g_loss)
         tf.scalar_summary('d_loss', self.d_loss)
+        tf.histogram_summary('abstract_representation', self.abstract_representation)
 
 
     def save(self, checkpoint_dir, step):
