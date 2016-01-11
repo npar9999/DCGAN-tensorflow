@@ -27,7 +27,7 @@ def main(_):
     if not os.path.exists(FLAGS.sample_dir):
         os.makedirs(FLAGS.sample_dir)
 
-    with tf.Session() as sess:
+    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
 
         dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size)
 
