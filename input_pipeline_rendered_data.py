@@ -14,7 +14,7 @@ def get_files(folder, file_regexp):
 def get_files_cached(folder, type, regexp, reload=False):
   f = os.path.join(folder, '{}_files.txt'.format(type))
   if os.path.isfile(f) and not reload:
-    return open(f).readlines()
+    return [filename.strip() for filename in open(f).readlines()]
   else:
     filelist = get_files(folder, regexp)
     with open(f, 'w') as file_write:
