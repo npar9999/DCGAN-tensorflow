@@ -15,6 +15,7 @@ flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 108, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_string("dataset", "celebA", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
+flags.DEFINE_string("summary_dir", "summary", "Directory name to save the summaries [summary]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
 flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
 FLAGS = flags.FLAGS

@@ -86,7 +86,8 @@ class DCGAN(object):
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
-        self.saver = tf.train.Saver()
+        self.make_summary_ops()
+        self.saver = tf.train.Saver(self.d_vars + self.g_vars)
 
     def train(self, config):
         """Train DCGAN"""
@@ -108,6 +109,9 @@ class DCGAN(object):
         start_time = time.time()
         batch_idxs = min(len(data), config.train_size)/config.batch_size
 
+        summary_op = tf.merge_all_summaries()
+        summary_writer = tf.train.SummaryWriter(config.summary_dir,
+                                                graph_def=self.sess.graph_def)
         for epoch in xrange(config.epoch):
             for idx in xrange(0, batch_idxs):
                 batch_files = data[idx*config.batch_size:(idx+1)*config.batch_size]
@@ -137,6 +141,10 @@ class DCGAN(object):
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
                     % (epoch, idx, batch_idxs,
                         time.time() - start_time, errD_fake+errD_real, errG))
+                
+                if counter % 5 == 0:
+                    summary_str = self.sess.run(summary_op, feed_dict={ self.images: batch_images, self.z: batch_z })
+                    summary_writer.add_summary(summary_str, counter)
 
                 if np.mod(counter, 100) == 1:
                     samples, d_loss, g_loss = self.sess.run(
@@ -249,6 +257,16 @@ class DCGAN(object):
             h2 = conv_cond_concat(h2, yb)
 
             return tf.nn.sigmoid(deconv2d(h2, self.c_dim, name='g_h3'))
+
+
+    def make_summary_ops(self):
+        tf.image_summary('generator', self.G)
+        tf.image_summary('images', self.images)
+        tf.scalar_summary('d_loss_fake', self.d_loss_fake)
+        tf.scalar_summary('d_loss_real', self.d_loss_real)
+        tf.scalar_summary('g_loss', self.g_loss)
+        tf.scalar_summary('d_loss', self.d_loss)
+
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
