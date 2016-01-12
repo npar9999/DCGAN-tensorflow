@@ -95,7 +95,7 @@ class DCGAN(object):
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
         self.make_summary_ops()
-        self.saver = tf.train.Saver(self.d_vars + self.g_vars)
+        self.saver = tf.train.Saver(self.d_vars + self.g_vars, max_to_keep=0)
 
     def train(self, config):
         """Train DCGAN"""
@@ -118,23 +118,28 @@ class DCGAN(object):
             counter = 0
             while not coord.should_stop():
                 # Update D and G network
+                tic = time.time()
                 _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                    self.d_loss_real, self.g_loss])
-
+                toc = time.time()
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                 #self.sess.run(g_optim)
 
-                print("errD:", errD_fake+errD_real, "errD_fake:", errD_fake, "errD_real", errD_real, "errG", errG)
-
                 counter += 1
-                print("Step: [%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                    % (counter, time.time() - start_time, errD_fake+errD_real, errG))
-                if counter % 2 == 0:
+                print("Step: [%4d] time: %4f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f" \
+                    % (counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
+                if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
 
+
                 if np.mod(counter, 500) == 2:
                     self.save(config.checkpoint_dir, counter)
+                    samples, sample_sketches = self.sess.run([self.G, self.sketches])
+                    save_images(samples, [8, 8], os.path.join(config.summary_dir, 'train_%s.png' % counter))
+                    save_images(sample_sketches, [8, 8], os.path.join(config.summary_dir, 'train_%s_sketches.png' % counter))
+
+
         except tf.errors.OutOfRangeError:
             print('Done training -- epoch limit reached')
         finally:
@@ -224,8 +229,6 @@ class DCGAN(object):
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
-        model_dir = "%s_%s" % (self.dataset_name, self.batch_size)
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
