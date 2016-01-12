@@ -47,15 +47,17 @@ def main(_):
 
             dcgan.train(FLAGS)
         else:
-            test_files = glob.glob('test_sketches/*64x64.png')
+            test_files = glob.glob('test_sketches/*.png')
             FLAGS.batch_size = 1    
             with tf.device('/cpu:0'):
                 test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
-                                                          shuffle=False, whiten=False, color=False, capacity=1)
+                                                          shuffle=False, whiten=False, color=False, augment=False)
                 test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
                 dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, test_sketches=test_sketches)
-
+                # Put it together with sketch again for easy comparison
+                sample_with_sketch = tf.concat(0, [dcgan.G, dcgan.sketches])
+            
             used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), '023') 
             # Important: Since not all variables are restored, some need to be initialized here.
             tf.initialize_all_variables().run()
@@ -64,10 +66,11 @@ def main(_):
             tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
                 for filename in test_files:
-                    samples = sess.run(dcgan.G)
-                    save_images(samples, [1, 1], '{}_depth.png'.format(filename))
+                    img = sess.run(sample_with_sketch)
+
+                    save_images(img, [1, 2], 'test_sketches_out/{}_with_depth.png'.format(os.path.basename(filename)))
             except tf.errors.OutOfRangeError as e:
-                print('Done training -- epoch limit reached')
+                print('Done')
                 raise e
             finally:
                 # When done, ask the threads to stop.

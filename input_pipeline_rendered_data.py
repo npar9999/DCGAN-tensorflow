@@ -38,14 +38,16 @@ def get_sketch_files(folder, size_suffix='64x64'):
   return get_files_cached(folder, 'sketch', '.*r_\d{3}_sketch_' + size_suffix + '.png$')
 
 
-def preprocess(image_tensor, img_size, whiten=True, color=False):
+def preprocess(image_tensor, img_size, whiten=True, color=False, augment=True):
   # Use same seed for flipping for ever tensor, so they'll be flipped the same.
   seed = 42
   if color:
     out = tf.reshape(image_tensor, [img_size, img_size, 3])
   else:
     out = tf.reshape(image_tensor, [img_size, img_size, 1])
-  out = tf.image.random_flip_left_right(out, seed)
+  if augment:
+    out = tf.image.random_flip_left_right(out, seed)
+    # TODO: add more data augmentation.
   if whiten:
     # Bring to range [-1, 1]
     out = tf.cast(out, tf.float32) * (2. / 255) - 1
@@ -53,13 +55,13 @@ def preprocess(image_tensor, img_size, whiten=True, color=False):
     out = tf.cast(out, tf.float32) * (1. / 255)
   return out
 
-def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, capacity=256):
+def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, augment=True, capacity=256):
   with tf.variable_scope(name) as scope:
     filename_seed = 233
     gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
                                                          capacity=capacity, shuffle=shuffle)
     _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
-    return preprocess(tf.image.decode_png(gray_files, 1), img_size, whiten=whiten, color=color)
+    return preprocess(tf.image.decode_png(gray_files, 1), img_size, whiten=whiten, color=color, augment=augment)
 
 
 def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files, shuffle=True):
