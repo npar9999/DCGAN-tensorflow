@@ -22,6 +22,10 @@ def get_files_cached(folder, type, regexp, reload=False):
     return filelist
 
 
+def get_rendered_files(folder, size_suffix='64x64'):
+  return get_files_cached(folder, 'rendered', '.*r_\d{3}_' + size_suffix + '\.png$')
+
+
 def get_albedo_files(folder, size_suffix='64x64'):
   return get_files_cached(folder, 'albedo', '.*r_\d{3}_albedo\.png0001_' + size_suffix + '\.png$')
 
@@ -65,9 +69,9 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, a
 
 
 def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files, shuffle=True):
-  depth = make_image_producer(depth_files, epochs, 'depth_producer', img_size, shuffle, whiten=True, color=False)
+  img = make_image_producer(depth_files, epochs, 'rendered_producer', img_size, shuffle, whiten=True, color=True)
   sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size, shuffle, whiten=False, color=False)
-  return tf.train.batch([sketches, depth], batch_size=batch_size, num_threads=1, capacity=256 * 16)
+  return tf.train.batch([sketches, img], batch_size=batch_size, num_threads=1, capacity=256 * 16)
 
 
 def get_chair_pipeline_training(batch_size, epochs):
@@ -75,5 +79,5 @@ def get_chair_pipeline_training(batch_size, epochs):
   sketch_folder = '/home/moser/shapenet_chairs_sketched2'
   img_size = 64
   size_suffix = str(img_size) + 'x' + str(img_size)
-  return get_chair_pipeline(batch_size, epochs, img_size, get_depth_files(chair_folder, size_suffix),
+  return get_chair_pipeline(batch_size, epochs, img_size, get_rendered_files(chair_folder, size_suffix),
                             get_sketch_files(sketch_folder, size_suffix))

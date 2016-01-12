@@ -40,25 +40,24 @@ class DCGAN(object):
         self.gfc_dim = gfc_dim
         self.dfc_dim = dfc_dim
 
-        self.c_dim = 3
+        self.c_dim = c_dim
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.d_bn1 = batch_norm(batch_size, name='d_bn1')
         self.d_bn2 = batch_norm(batch_size, name='d_bn2')
-
         if not self.y_dim:
             self.d_bn3 = batch_norm(batch_size, name='d_bn3')
 
         self.g_bn0 = batch_norm(batch_size, name='g_bn0')
         self.g_bn1 = batch_norm(batch_size, name='g_bn1')
         self.g_bn2 = batch_norm(batch_size, name='g_bn2')
+        if not self.y_dim:
+            self.g_bn3 = batch_norm(batch_size, name='g_bn3')
 
         self.g_s_bn1 = batch_norm(batch_size, name='g_s_bn1')
         self.g_s_bn2 = batch_norm(batch_size, name='g_s_bn2')
         self.g_s_bn3 = batch_norm(batch_size, name='g_s_bn3')
-
-        if not self.y_dim:
-            self.g_bn3 = batch_norm(batch_size, name='g_bn3')
+        self.g_s_bn4 = batch_norm(batch_size, name='g_s_bn4')
 
         self.dataset_name = dataset_name
         self.build_model(test_sketches)
@@ -71,11 +70,13 @@ class DCGAN(object):
         self.images = images
         if test_sketches is None:
             self.sketches = sketches
+            self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
             self.sketches = test_sketches
+            # TODO: think of a way of feeding z in test mode.
 
         with tf.variable_scope('generator') as scope:
-            self.G = self.generator(self.sketches, 1)
+            self.G = self.generator(self.sketches, self.z)
 
         with tf.variable_scope('discriminator') as scope:
             self.D = self.discriminator(self.images, self.sketches)
@@ -177,18 +178,21 @@ class DCGAN(object):
 
             return tf.nn.sigmoid(linear(h2, 1, 'd_h3_lin'))
 
-    def generator(self, sketches, output_dimensions=3, y=None):
+    def generator(self, sketches, z=None, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
         s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
-        self.abstract_representation = s3
+        s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
+        self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
+        if z:
+          self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 
         if not self.y_dim:
-            # project `z` and reshape
-            # h0 = tf.reshape(linear(s3, self.gf_dim*8*4*4, 'g_h0_lin'),
-            #                 [-1, 4, 4, self.gf_dim * 8])
-            # h0 = tf.nn.relu(self.g_bn0(h0))
+            # project `abstract representation` and reshape
+            h0 = tf.reshape(linear(self.abstract_representation, self.gf_dim*8*4*4, 'g_h0_lin'),
+                            [-1, 4, 4, self.gf_dim * 8])
+            h0 = tf.nn.relu(self.g_bn0(h0))
 
             h1 = deconv2d(s3, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
             h1 = tf.nn.relu(self.g_bn1(h1))
@@ -199,7 +203,7 @@ class DCGAN(object):
             h3 = deconv2d(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
             h3 = tf.nn.relu(self.g_bn3(h3))
 
-            h4 = deconv2d(h3, [self.batch_size, 64, 64, output_dimensions], name='g_h4')
+            h4 = deconv2d(h3, [self.batch_size, 64, 64, self.c_dim], name='g_h4')
 
             return tf.nn.tanh(h4)
         else:
