@@ -53,9 +53,9 @@ class DCGAN(object):
         self.g_bn1 = batch_norm(batch_size, name='g_bn1')
         self.g_bn2 = batch_norm(batch_size, name='g_bn2')
 
-        self.s_bn1 = batch_norm(batch_size, name='s_bn1')
-        self.s_bn2 = batch_norm(batch_size, name='s_bn2')
-        self.s_bn3 = batch_norm(batch_size, name='s_bn3')
+        self.g_s_bn1 = batch_norm(batch_size, name='g_s_bn1')
+        self.g_s_bn2 = batch_norm(batch_size, name='g_s_bn2')
+        self.g_s_bn3 = batch_norm(batch_size, name='g_s_bn3')
 
         if not self.y_dim:
             self.g_bn3 = batch_norm(batch_size, name='g_bn3')
@@ -177,9 +177,9 @@ class DCGAN(object):
 
     def generator(self, sketches, output_dimensions=3, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
-        s1 = lrelu(self.s_bn1(conv2d(s0, self.df_dim*2, name='g_s1_conv')))
-        s2 = lrelu(self.s_bn2(conv2d(s1, self.df_dim*4, name='g_s2_conv')))
-        s3 = lrelu(self.s_bn3(conv2d(s2, self.df_dim*8, name='g_s3_conv')))
+        s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
+        s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
+        s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         self.abstract_representation = s3
 
         if not self.y_dim:
