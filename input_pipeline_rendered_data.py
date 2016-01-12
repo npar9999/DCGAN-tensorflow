@@ -53,27 +53,25 @@ def preprocess(image_tensor, img_size, whiten=True, color=False):
     out = tf.cast(out, tf.float32) * (1. / 255)
   return out
 
+def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, capacity=256):
+  with tf.variable_scope(name) as scope:
+    filename_seed = 233
+    gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
+                                                         capacity=capacity, shuffle=shuffle)
+    _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
+    return preprocess(tf.image.decode_png(gray_files, 1), img_size, whiten=whiten, color=color)
 
-# Puts reading/preprocessing on CPU by default.
-def get_chair_pipeline(batch_size, epochs):
+
+def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files, shuffle=True):
+  depth = make_image_producer(depth_files, epochs, 'depth_producer', img_size, shuffle, whiten=True, color=False)
+  sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size, shuffle, whiten=False, color=False)
+  return tf.train.batch([sketches, depth], batch_size=batch_size, num_threads=1, capacity=256 * 16)
+
+
+def get_chair_pipeline_training(batch_size, epochs):
   chair_folder = '/home/moser/shapenet_chairs_rendered2'
   sketch_folder = '/home/moser/shapenet_chairs_sketched2'
-  filename_seed = 233
-  capacity = 256
   img_size = 64
   size_suffix = str(img_size) + 'x' + str(img_size)
-  with tf.device('/cpu:0'):
-
-    with tf.variable_scope('depth_producer') as scope:
-      gray_filename_queue = tf.train.string_input_producer(get_depth_files(chair_folder, size_suffix),
-                                                           num_epochs=epochs, seed=filename_seed, capacity=capacity)
-      _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
-      depth = preprocess(tf.image.decode_png(gray_files, 1), img_size, whiten=True, color=False)
-
-    with tf.variable_scope('sketch_producer') as scope:
-      sketch_filename_queue = tf.train.string_input_producer(get_sketch_files(sketch_folder, size_suffix),
-                                                             num_epochs=epochs, seed=filename_seed, capacity=capacity)
-      _, sketch_files = tf.WholeFileReader(scope.name).read(sketch_filename_queue)
-      sketches = preprocess(tf.image.decode_png(sketch_files, 1), img_size, whiten=False)
-
-  return tf.train.batch([sketches, depth], batch_size=batch_size, num_threads=1, capacity=256 * 16)
+  return get_chair_pipeline(batch_size, epochs, img_size, get_depth_files(chair_folder, size_suffix),
+                            get_sketch_files(sketch_folder, size_suffix))

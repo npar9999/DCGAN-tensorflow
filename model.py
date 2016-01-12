@@ -5,13 +5,13 @@ import tensorflow as tf
 
 from ops import *
 from utils import *
-from input_pipeline_rendered_data import get_chair_pipeline
+from input_pipeline_rendered_data import get_chair_pipeline_training
 
 class DCGAN(object):
     def __init__(self, sess, image_size=108, 
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
                  y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default'):
+                 gfc_dim=1024, dfc_dim=1024, c_dim=3, test_sketches=None, dataset_name='default'):
         """
 
         Args:
@@ -61,16 +61,18 @@ class DCGAN(object):
             self.g_bn3 = batch_norm(batch_size, name='g_bn3')
 
         self.dataset_name = dataset_name
-        self.build_model()
+        self.build_model(test_sketches)
 
-    def build_model(self):
+    def build_model(self, test_sketches=None):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
-        sketches, images = get_chair_pipeline(self.batch_size, 1000)
+        sketches, images = get_chair_pipeline_training(self.batch_size, 1000)
         self.images = images
-        self.sketches = sketches
-
+        if test_sketches is None:
+            self.sketches = sketches
+        else:
+            self.sketches = test_sketches
 
         with tf.variable_scope('generator') as scope:
             self.G = self.generator(self.sketches, 1)
@@ -87,7 +89,7 @@ class DCGAN(object):
 
         with tf.variable_scope('generator_loss') as scope:
             self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
-                                                    
+
 
         t_vars = tf.trainable_variables()
 
@@ -239,9 +241,6 @@ class DCGAN(object):
 
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
-
-        model_dir = "%s_%s" % (self.dataset_name, self.batch_size)
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
