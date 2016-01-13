@@ -22,6 +22,8 @@ FLAGS = flags.FLAGS
 def main(_):
     pp.pprint(flags.FLAGS.__flags)
 
+    if not os.path.exists(FLAGS.summary_dir):
+        os.makedirs(FLAGS.summary_dir)
     runs = sorted(map(int, next(os.walk(FLAGS.summary_dir))[1]))
     if len(runs) == 0:
         run_nr = 0

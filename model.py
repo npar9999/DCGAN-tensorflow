@@ -122,11 +122,12 @@ class DCGAN(object):
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
+		
                 _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                    self.d_loss_real, self.g_loss])
-                toc = time.time()
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                #self.sess.run(g_optim)
+                self.sess.run(g_optim)
+                toc = time.time()
 
                 counter += 1
                 print("Step: [%4d] time: %4f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f" \
@@ -184,7 +185,8 @@ class DCGAN(object):
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
-        self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
+        # TODO: add batch normalization? self.g_s_bn4(...)
+        self.abstract_representation = lrelu(linear(s3_flat, self.gfc_dim, 'g_s4_lin'))
         if z:
           self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 
@@ -194,7 +196,7 @@ class DCGAN(object):
                             [-1, 4, 4, self.gf_dim * 8])
             h0 = tf.nn.relu(self.g_bn0(h0))
 
-            h1 = deconv2d(s3, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
+            h1 = deconv2d(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
             h1 = tf.nn.relu(self.g_bn1(h1))
 
             h2 = deconv2d(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
@@ -216,7 +218,7 @@ class DCGAN(object):
             h1 = tf.nn.relu(self.g_bn1(linear(z, self.gf_dim*2*7*7, 'g_h1_lin')))
             h1 = tf.reshape(h1, [None, 7, 7, self.gf_dim * 2])
             h1 = conv_cond_concat(h1, yb)
-
+	
             h2 = tf.nn.relu(self.g_bn2(deconv2d(h1, self.gf_dim, name='g_h2')))
             h2 = conv_cond_concat(h2, yb)
 

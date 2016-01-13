@@ -65,7 +65,8 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, a
     gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
                                                          capacity=capacity, shuffle=shuffle)
     _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
-    return preprocess(tf.image.decode_png(gray_files, 1), img_size, whiten=whiten, color=color, augment=augment)
+    channels = 3 if color else 1
+    return preprocess(tf.image.decode_png(gray_files, channels), img_size, whiten=whiten, color=color, augment=augment)
 
 
 def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files, shuffle=True):
