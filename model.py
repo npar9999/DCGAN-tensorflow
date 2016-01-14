@@ -135,7 +135,7 @@ class DCGAN(object):
                     summary_writer.add_summary(summary_str, counter)
 
 
-                if np.mod(counter, 500) == 2:
+                if np.mod(counter, 2000) == 2:
                     self.save(config.checkpoint_dir, counter)
                     samples, sample_sketches = self.sess.run([self.G, self.sketches])
                     save_images(samples, [8, 8], os.path.join(config.summary_dir, 'train_%s.png' % counter))
