@@ -17,6 +17,7 @@ flags.DEFINE_integer("image_size", 64, "The size of image to use (will be center
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("summary_dir", "summary_sketches_to_rendered", "Directory name to save the summaries [checkpoint]")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
+flags.DEFINE_string("continue_from", '005', 'Continues from the given run, None does start training from scratch [None]')
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -38,8 +39,6 @@ def main(_):
     else:
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
     with tf.Session(config=tf.ConfigProto(log_device_placement=True, gpu_options=gpu_options)) as sess:
-
-
         if FLAGS.is_train:
             dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size)
             if not os.path.exists(FLAGS.checkpoint_dir):

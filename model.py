@@ -108,6 +108,11 @@ class DCGAN(object):
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
         tf.initialize_all_variables().run()
+	if config.continue_from:
+            checkpoint_dir = os.path.join(os.path.dirname(config.checkpoint_dir), config.continue_from)
+            print('Loading variables from ' + checkpoint_dir)
+            self.load(checkpoint_dir)
+
         counter = 1
         start_time = time.time()
 
@@ -137,7 +142,7 @@ class DCGAN(object):
                     summary_writer.add_summary(summary_str, counter)
 
 
-                if np.mod(counter, 500) == 2:
+                if np.mod(counter, 2000) == 2:
                     self.save(config.checkpoint_dir, counter)
                     samples, sample_sketches = self.sess.run([self.G, self.sketches])
                     save_images(samples, [8, 8], os.path.join(config.summary_dir, 'train_%s.png' % counter))
