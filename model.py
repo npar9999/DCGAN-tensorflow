@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from ops import *
 from utils import *
-from input_pipeline_rendered_data import get_chair_pipeline_training
+from input_pipeline_rendered_data import get_chair_pipeline_training_recolor
 
 class DCGAN(object):
     def __init__(self, sess, image_size=108,
@@ -66,7 +66,7 @@ class DCGAN(object):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
-        sketches, images = get_chair_pipeline_training(self.batch_size, 1000)
+        sketches, images = get_chair_pipeline_training_recolor(self.batch_size, 1000)
         self.images = images
         if is_train:
             self.sketches = sketches
