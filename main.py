@@ -79,7 +79,7 @@ def main(_):
                     batch_sketches = test_sketches.eval()
                     for i in xrange(10):
                         batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
-                        batch_z = np.zeros(batch_z_shape) + (i / 10)
+                        batch_z = np.zeros(batch_z_shape) - 1 + (i / 5)
                         #batch_z = np.random.uniform(-1, 1, [FLAGS.batch_size, 100])
                         print(batch_z)
                         img = sess.run(sample_with_sketch,
@@ -89,7 +89,6 @@ def main(_):
                         save_images(img, [1, 2], filename_out)
             except tf.errors.OutOfRangeError as e:
                 print('Done')
-                raise e
             finally:
                 # When done, ask the threads to stop.
                 coord.request_stop()
