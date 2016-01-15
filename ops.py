@@ -1,5 +1,5 @@
 import math
-import numpy as np 
+import numpy as np
 import tensorflow as tf
 
 from tensorflow.python.framework import ops
@@ -8,8 +8,9 @@ from utils import *
 
 class batch_norm(object):
     """Code modification of http://stackoverflow.com/a/33950177"""
-    def __init__(self, batch_size, epsilon=1e-5, momentum = 0.1, name="batch_norm"):
+    def __init__(self, batch_size, convolutional=True, epsilon=1e-5, momentum = 0.1, name="batch_norm"):
         with tf.variable_scope(name) as scope:
+            self.convolutional = convolutional
             self.epsilon = epsilon
             self.momentum = momentum
             self.batch_size = batch_size
@@ -25,9 +26,10 @@ class batch_norm(object):
                                 initializer=tf.random_normal_initializer(1., 0.02))
             self.beta = tf.get_variable("beta", [shape[-1]],
                                 initializer=tf.constant_initializer(0.))
-
-            mean, variance = tf.nn.moments(x, [0, 1, 2])
-
+            if self.convolutional:
+              mean, variance = tf.nn.moments(x, [0, 1, 2])
+            else:
+              mean, variance = tf.nn.moments(x, [0])
             return tf.nn.batch_norm_with_global_normalization(
                 x, mean, variance, self.beta, self.gamma, self.epsilon,
                 scale_after_normalization=True)
@@ -56,7 +58,7 @@ def conv_cond_concat(x, y):
     y_shapes = y.get_shape()
     return tf.concat(3, [x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])])
 
-def conv2d(input_, output_dim, 
+def conv2d(input_, output_dim,
            k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
            name="conv2d"):
     with tf.variable_scope(name):

@@ -10,8 +10,8 @@ from input_pipeline_rendered_data import get_chair_pipeline_training
 class DCGAN(object):
     def __init__(self, sess, image_size=108,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
-                 y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=3, is_train=True, dataset_name='default'):
+                 y_dim=None, z_dim=512, gf_dim=64, df_dim=64,
+                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True, dataset_name='default'):
         """
 
         Args:
@@ -191,8 +191,8 @@ class DCGAN(object):
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
-        # TODO: add batch normalization? self.g_s_bn4(...)
-        self.abstract_representation = lrelu(linear(s3_flat, self.gfc_dim, 'g_s4_lin'))
+        self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin'),
+                                                          convolutional=False))
         if z:
           self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 

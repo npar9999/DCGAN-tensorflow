@@ -19,7 +19,7 @@ flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 64, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("summary_dir", "summary_sketches_to_rendered", "Directory name to save the summaries [checkpoint]")
-flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
+flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
 flags.DEFINE_string("continue_from", None, 'Continues from the given run, None does start training from scratch [None]')
 FLAGS = flags.FLAGS
 
