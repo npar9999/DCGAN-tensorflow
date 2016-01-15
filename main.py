@@ -1,3 +1,6 @@
+from __future__ import division
+from __future__ import print_function
+
 import os
 import numpy as np
 import tensorflow as tf
@@ -16,8 +19,8 @@ flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 64, "The size of image to use (will be center cropped) [108]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("summary_dir", "summary_sketches_to_rendered", "Directory name to save the summaries [checkpoint]")
-flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
-flags.DEFINE_string("continue_from", '005', 'Continues from the given run, None does start training from scratch [None]')
+flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
+flags.DEFINE_string("continue_from", None, 'Continues from the given run, None does start training from scratch [None]')
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -49,17 +52,23 @@ def main(_):
             dcgan.train(FLAGS)
         else:
             test_files = glob.glob('test_sketches/*.png')
-            FLAGS.batch_size = 1    
+            FLAGS.batch_size = 1
             with tf.device('/cpu:0'):
                 test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
                                                           shuffle=False, whiten=False, color=False, augment=False)
                 test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
-                dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, test_sketches=test_sketches)
+                dcgan = DCGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, is_train=False)
+                if dcgan.G.get_shape()[3] == 3:
+                    sketches_for_display = tf.concat(3, [dcgan.sketches, dcgan.sketches, dcgan.sketches])
+                else:
+                    sketches_for_display = dcgan.sketches
                 # Put it together with sketch again for easy comparison
-                sample_with_sketch = tf.concat(0, [dcgan.G, dcgan.sketches])
-            
-            used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), '023') 
+                sample_with_sketch = tf.concat(0, [dcgan.G, sketches_for_display])
+            run_restored = '012'
+            print('Restoring variables from run ' + run_restored)
+            used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), run_restored)
+
             # Important: Since not all variables are restored, some need to be initialized here.
             tf.initialize_all_variables().run()
             dcgan.load(used_checkpoint_dir)
@@ -67,9 +76,17 @@ def main(_):
             tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
                 for filename in test_files:
-                    img = sess.run(sample_with_sketch)
-
-                    save_images(img, [1, 2], 'test_sketches_to_rendered_out/{}_with_image.png'.format(os.path.basename(filename)))
+                    batch_sketches = test_sketches.eval()
+                    for i in xrange(10):
+                        batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
+                        batch_z = np.zeros(batch_z_shape) + (i / 10)
+                        #batch_z = np.random.uniform(-1, 1, [FLAGS.batch_size, 100])
+                        print(batch_z)
+                        img = sess.run(sample_with_sketch,
+                                       feed_dict={dcgan.z: batch_z,
+                                                  dcgan.sketches: batch_sketches})
+                        filename_out = 'test_sketches_to_rendered_out/{}_{}_with_image.png'.format(os.path.basename(filename), str(i).zfill(3))
+                        save_images(img, [1, 2], filename_out)
             except tf.errors.OutOfRangeError as e:
                 print('Done')
                 raise e

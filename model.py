@@ -8,10 +8,10 @@ from utils import *
 from input_pipeline_rendered_data import get_chair_pipeline_training
 
 class DCGAN(object):
-    def __init__(self, sess, image_size=108, 
+    def __init__(self, sess, image_size=108,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
                  y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
-                 gfc_dim=1024, dfc_dim=1024, c_dim=3, test_sketches=None, dataset_name='default'):
+                 gfc_dim=1024, dfc_dim=1024, c_dim=3, is_train=True, dataset_name='default'):
         """
 
         Args:
@@ -60,20 +60,21 @@ class DCGAN(object):
         self.g_s_bn4 = batch_norm(batch_size, name='g_s_bn4')
 
         self.dataset_name = dataset_name
-        self.build_model(test_sketches)
+        self.build_model(is_train)
 
-    def build_model(self, test_sketches=None):
+    def build_model(self, is_train):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
         sketches, images = get_chair_pipeline_training(self.batch_size, 1000)
         self.images = images
-        if test_sketches is None:
+        if is_train:
             self.sketches = sketches
             self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
-            self.sketches = test_sketches
-            # TODO: think of a way of feeding z in test mode.
+            self.sketches = tf.placeholder(tf.float32, [None, self.sample_size,
+                                                        self.sample_size, 1])
+            self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
 
         with tf.variable_scope('generator') as scope:
             self.G = self.generator(self.sketches, self.z)
@@ -108,7 +109,7 @@ class DCGAN(object):
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
         tf.initialize_all_variables().run()
-	if config.continue_from:
+        if config.continue_from:
             checkpoint_dir = os.path.join(os.path.dirname(config.checkpoint_dir), config.continue_from)
             print('Loading variables from ' + checkpoint_dir)
             self.load(checkpoint_dir)
@@ -127,7 +128,7 @@ class DCGAN(object):
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
-		
+
                 _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                    self.d_loss_real, self.g_loss])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
@@ -223,7 +224,7 @@ class DCGAN(object):
             h1 = tf.nn.relu(self.g_bn1(linear(z, self.gf_dim*2*7*7, 'g_h1_lin')))
             h1 = tf.reshape(h1, [None, 7, 7, self.gf_dim * 2])
             h1 = conv_cond_concat(h1, yb)
-	
+
             h2 = tf.nn.relu(self.g_bn2(deconv2d(h1, self.gf_dim, name='g_h2')))
             h2 = conv_cond_concat(h2, yb)
 
