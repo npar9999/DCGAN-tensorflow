@@ -57,7 +57,7 @@ class DCGAN(object):
         self.g_s_bn1 = batch_norm(batch_size, name='g_s_bn1')
         self.g_s_bn2 = batch_norm(batch_size, name='g_s_bn2')
         self.g_s_bn3 = batch_norm(batch_size, name='g_s_bn3')
-        self.g_s_bn4 = batch_norm(batch_size, name='g_s_bn4')
+        self.g_s_bn4 = batch_norm(batch_size, convolutional=False, name='g_s_bn4')
 
         self.dataset_name = dataset_name
         self.build_model(is_train)
@@ -191,10 +191,10 @@ class DCGAN(object):
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
-        self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin'),
-                                                          convolutional=False))
+        # TODO: Introduce batch normalization here.
+        self.abstract_representation = lrelu(linear(s3_flat, self.gfc_dim, 'g_s4_lin'))
         if z:
-          self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
+            self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 
         if not self.y_dim:
             # project `abstract representation` and reshape
