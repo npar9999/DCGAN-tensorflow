@@ -81,3 +81,5 @@ Session.vim
 .netrwhist
 *~
 
+summary*
+checkpoint*
