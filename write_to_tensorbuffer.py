@@ -59,7 +59,7 @@ def main(argv):
             continue
             #raise Exception('Unexpected number of channels: {}, file: {}'.format(sketch.shape, sketch_file))
 
-        write_to(writer, rendered, sketch)
+        write_to(writer, sketch, rendered)
 
         if idx % 1000 == 1:
             print(idx)
