@@ -45,7 +45,7 @@ def main(argv):
         if pic_data.shape[1] == 4:
             rendered = pic_data[:, 0:3]
         elif pic_data.shape[1] == 2:
-            rendered = numpy.zeros([pic_data.shape[0], 3])
+            rendered = numpy.zeros([pic_data.shape[0], 3], dtype=np.uint8)
             for i in xrange(3):
                 rendered[:, i] = pic_data[:, 0]
         else:
