@@ -51,7 +51,7 @@ def main(argv):
         else:
             raise Exception('Unexpected number of channels!')
 
-        sketch = numpy.array(Image.open(sketch_file).getdata())
+        sketch = numpy.array(Image.open(sketch_file).getdata(), dtype=np.uint8)
         if len(sketch.shape) == 2 and sketch.shape[1] == 2:
             sketch = sketch[:, 0]
         else:
