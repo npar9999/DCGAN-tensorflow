@@ -1,7 +1,7 @@
 import re, os
 import tensorflow as tf
 import numpy as np
-
+import glob
 
 def get_files(folder, file_regexp):
   files = []
@@ -99,3 +99,27 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
 
   return get_chair_pipeline(batch_size, epochs, img_size, rendered_files,
                             sketched_files, augment_color=True)
+
+# TODO: Fix this.
+def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs):
+    reader = tf.TFRecordReader()
+    all_files = glob.glob(dump_file + '*')
+    files = tf.train.string_input_producer(all_files, num_epochs=epochs)
+    _, serialized_example = reader.read(files)
+    features = tf.parse_single_example(
+        serialized_example,
+        features={'image': tf.FixedLenFeature([], tf.string),
+                  'sketch': tf.FixedLenFeature([], tf.string)})
+    img_size = 64
+    image = tf.decode_raw(features['image'], tf.uint8)
+    image.set_shape([img_size * img_size * 3])
+    image = preprocess(image, img_size,
+                       whiten=False, color=True, augment=True, augment_color=True)
+    sketch = tf.decode_raw(features['sketch'], tf.uint8)
+    sketch.set_shape([img_size * img_size * 1])
+    sketch = preprocess(sketch, img_size,
+                        whiten=False, color=False, augment=True)
+    return tf.train.shuffle_batch([sketch, image], batch_size=batch_size,
+                                  capacity=batch_size*16,
+                                  min_after_dequeue=batch_size*2,
+                                  num_threads=8)
