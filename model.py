@@ -257,6 +257,8 @@ class DCGAN(object):
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+            ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
+            print('Reading variables to be restored from ' + ckpt_file)
+            self.saver.restore(self.sess, ckpt_file)
         else:
             raise Exception(" [!] Testing, but %s not found" % checkpoint_dir)
