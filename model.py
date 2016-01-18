@@ -145,8 +145,9 @@ class DCGAN(object):
 
                 if np.mod(counter, 2000) == 2:
                     self.save(config.checkpoint_dir, counter)
-                    samples, sample_sketches = self.sess.run([self.G, self.sketches])
+                    samples, sample_images, sample_sketches = self.sess.run([self.G, self.images, self.sketches])
                     save_images(samples, [8, 8], os.path.join(config.summary_dir, 'train_%s.png' % counter))
+                    save_images(sample_images, [8, 8], os.path.join(config.summary_dir, 'train_%s_images.png' % counter))
                     save_images(sample_sketches, [8, 8], os.path.join(config.summary_dir, 'train_%s_sketches.png' % counter))
 
 
