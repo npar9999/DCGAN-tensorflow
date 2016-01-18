@@ -94,6 +94,8 @@ def main(_):
             finally:
                 # When done, ask the threads to stop.
                 coord.request_stop()
+                # And wait for them to actually do it.
+                coord.join(threads)
 
 
 if __name__ == '__main__':
