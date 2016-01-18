@@ -75,7 +75,7 @@ def main(_):
             tf.initialize_all_variables().run()
             dcgan.load(used_checkpoint_dir)
             coord = tf.train.Coordinator()
-            tf.train.start_queue_runners(sess=sess, coord=coord)
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
                 for filename in test_files:
                     batch_sketches = test_sketches.eval()
