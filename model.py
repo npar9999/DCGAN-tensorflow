@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from ops import *
 from utils import *
-from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
+from input_pipeline_rendered_data import get_chair_pipeline_training_recolor
 
 class DCGAN(object):
     def __init__(self, sess, image_size=108,
@@ -66,7 +66,7 @@ class DCGAN(object):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
-        sketches, images = get_chair_pipeline_training_from_dump('recolor_chairs.tfrecords', self.batch_size, 1000)
+        sketches, images = get_chair_pipeline_training_recolor(self.batch_size, 10000)
         self.images = images
         if is_train:
             self.sketches = sketches
@@ -239,7 +239,8 @@ class DCGAN(object):
         tf.scalar_summary('g_loss', self.g_loss)
         tf.scalar_summary('d_loss', self.d_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
-
+        tf.histogram_summary('d_bn1', self.d_bn1)
+        tf.scalar_summary('length_random_vector', tf.sqrt(tf.reduce_sum(tf.square(self.z))))
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
