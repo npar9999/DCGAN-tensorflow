@@ -65,8 +65,10 @@ def main(_):
                     sketches_for_display = dcgan.sketches
                 # Put it together with sketch again for easy comparison
                 sample_with_sketch = tf.concat(0, [dcgan.G, sketches_for_display])
-            run_restored = '012'
-            print('Restoring variables from run ' + run_restored)
+                batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
+                rng = tf.random_uniform(batch_z_shape, minval=-1, maxval=1, dtype=tf.float32)
+
+            run_restored = FLAGS.continue_from
             used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), run_restored)
 
             # Important: Since not all variables are restored, some need to be initialized here.
