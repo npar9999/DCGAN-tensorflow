@@ -162,8 +162,8 @@ class DCGAN(object):
 
         if not self.y_dim:
             concated = tf.concat(3, [image, sketches])
-            h0 = lrelu(conv2d(concated, self.df_dim, name='d_h0_conv'))
-            h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim*2, name='d_h1_conv')))
+            self.d_h0 = lrelu(conv2d(concated, self.df_dim, name='d_h0_conv'))
+            h1 = lrelu(self.d_bn1(conv2d(self.d_h0, self.df_dim*2, name='d_h1_conv')))
             h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
             h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
             h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
@@ -239,7 +239,7 @@ class DCGAN(object):
         tf.scalar_summary('g_loss', self.g_loss)
         tf.scalar_summary('d_loss', self.d_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
-        tf.histogram_summary('d_bn1', self.d_bn1)
+        tf.histogram_summary('d_h0', self.d_h0)
         tf.scalar_summary('length_random_vector', tf.sqrt(tf.reduce_sum(tf.square(self.z))))
 
     def save(self, checkpoint_dir, step):
