@@ -101,7 +101,7 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
                             sketched_files, augment_color=True)
 
 
-def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_queue_size=1000):
+def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_queue_size=3000):
   with tf.device('/cpu:0'):
     with tf.variable_scope('dump_reader') as scope:
       reader = tf.TFRecordReader()
@@ -116,7 +116,7 @@ def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_que
       image = tf.decode_raw(features['image'], tf.uint8)
       image.set_shape([img_size * img_size * 3])
       image = preprocess(image, img_size,
-                         whiten=False, color=True, augment=True, augment_color=True)
+                         whiten=True, color=True, augment=True, augment_color=True)
       sketch = tf.decode_raw(features['sketch'], tf.uint8)
       sketch.set_shape([img_size * img_size * 1])
       sketch = preprocess(sketch, img_size,
