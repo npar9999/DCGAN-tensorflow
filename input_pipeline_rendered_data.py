@@ -44,7 +44,7 @@ def get_sketch_files(folder, size_suffix='64x64'):
 
 def preprocess(image_tensor, img_size, whiten=True, color=False,
                augment=True, augment_color=False):
-  # Use same seed for flipping for ever tensor, so they'll be flipped the same.
+  # Use same seed for flipping for every tensor, so they'll be flipped the same.
   seed = 42
   if color:
     out = tf.reshape(image_tensor, [img_size, img_size, 3])
@@ -100,8 +100,9 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
   return get_chair_pipeline(batch_size, epochs, img_size, rendered_files,
                             sketched_files, augment_color=True)
 
-# TODO: Fix this.
-def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs):
+
+def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_queue_size=1000):
+  with tf.device('/cpu:0'):
     reader = tf.TFRecordReader()
     all_files = glob.glob(dump_file + '*')
     files = tf.train.string_input_producer(all_files, num_epochs=epochs)
@@ -120,6 +121,6 @@ def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs):
     sketch = preprocess(sketch, img_size,
                         whiten=False, color=False, augment=True)
     return tf.train.shuffle_batch([sketch, image], batch_size=batch_size,
-                                  capacity=batch_size*16,
-                                  min_after_dequeue=batch_size*2,
-                                  num_threads=8)
+                                  capacity=min_queue_size + batch_size*16,
+                                  min_after_dequeue=min_queue_size,
+                                  num_threads=2)
