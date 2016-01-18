@@ -241,7 +241,9 @@ class DCGAN(object):
         tf.scalar_summary('d_loss', self.d_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
         tf.histogram_summary('d_h0', self.d_h0)
-        tf.scalar_summary('length_random_vector', tf.sqrt(tf.reduce_sum(tf.square(self.z))))
+        with tf.variable_scope('z_stats') as scope:
+            length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
+            tf.scalar_summary('length_z', length)
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
