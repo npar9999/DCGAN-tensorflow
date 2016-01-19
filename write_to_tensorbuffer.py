@@ -9,7 +9,7 @@ from random import shuffle
 
 tf.app.flags.DEFINE_string('directory', '/tmp', 'Place to dump file')
 tf.app.flags.DEFINE_string('name', 'recolor_chairs', 'Name of dump to be produced.')
-tf.app.flags.DEFINE_integer('examples_per_file', 10000, 'Number of examples per file.')
+tf.app.flags.DEFINE_integer('examples_per_file', 2000, 'Number of examples per file.')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -66,7 +66,7 @@ def main(argv):
         if idx % 1000 == 1:
             print(idx)
         if idx % FLAGS.examples_per_file == 1 and idx > 1:
-            filename = os.path.join(FLAGS.directory, name + '.tfrecords' + str(idx // FLAGS.examples_per_file))
+            filename = os.path.join(FLAGS.directory, FLAGS.name + '.tfrecords' + str(idx // FLAGS.examples_per_file))
             writer = tf.python_io.TFRecordWriter(filename)
 
 
