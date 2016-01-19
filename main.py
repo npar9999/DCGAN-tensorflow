@@ -80,9 +80,8 @@ def main(_):
                     batch_sketches = test_sketches.eval()
                     for i in xrange(10):
                         batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
-                        batch_z = np.zeros(batch_z_shape) - 1 + (i / 5)
-                        #batch_z = np.random.uniform(-1, 1, [FLAGS.batch_size, 100])
-                        print(batch_z)
+                        #batch_z = np.zeros(batch_z_shape) - 1 + (i / 5)
+                        batch_z = np.random.uniform(-1, 1, batch_z_shape)
                         img = sess.run(sample_with_sketch,
                                        feed_dict={dcgan.z: batch_z,
                                                   dcgan.sketches: batch_sketches})
