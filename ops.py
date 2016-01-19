@@ -8,14 +8,11 @@ from utils import *
 
 class batch_norm(object):
     """Code modification of http://stackoverflow.com/a/33950177"""
-    def __init__(self, batch_size, convolutional=True, epsilon=1e-5, momentum = 0.1, name="batch_norm"):
+    def __init__(self, batch_size, convolutional=True, epsilon=1e-5, name="batch_norm"):
         with tf.variable_scope(name) as scope:
             self.convolutional = convolutional
             self.epsilon = epsilon
-            self.momentum = momentum
             self.batch_size = batch_size
-
-            self.ema = tf.train.ExponentialMovingAverage(decay=self.momentum)
             self.name=name
 
     def __call__(self, x, train=True):
@@ -64,6 +61,8 @@ def conv2d(input_, output_dim,
     with tf.variable_scope(name):
         w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
                             initializer=tf.truncated_normal_initializer(stddev=stddev))
+        if not tf.get_variable_scope().reuse:
+            tf.histogram_summary(w.name, w)
         conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding='SAME')
         return conv
 
@@ -74,6 +73,7 @@ def deconv2d(input_, output_shape,
         # filter : [height, width, output_channels, in_channels]
         w = tf.get_variable('w', [k_h, k_h, output_shape[-1], input_.get_shape()[-1]],
                             initializer=tf.random_normal_initializer(stddev=stddev))
+        tf.histogram_summary(w.name, w)
         return tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
                                       strides=[1, d_h, d_w, 1])
 
@@ -83,10 +83,12 @@ def lrelu(x, leak=0.2, name="lrelu"):
         f2 = 0.5 * (1 - leak)
         return f1 * x + f2 * abs(x)
 
-def linear(input_, output_size, scope=None, stddev=0.02):
+def linear(input_, output_size, scope='Linear', stddev=0.02):
     shape = input_.get_shape().as_list()
 
-    with tf.variable_scope(scope or "Linear"):
+    with tf.variable_scope(scope):
         matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
                                  tf.random_normal_initializer(stddev=stddev))
+        if not tf.get_variable_scope().reuse:
+            tf.histogram_summary(matrix.name, matrix)
         return tf.matmul(input_, matrix)

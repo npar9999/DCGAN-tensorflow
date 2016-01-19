@@ -11,7 +11,7 @@ class DCGAN(object):
     def __init__(self, sess, image_size=108,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
                  y_dim=None, z_dim=512, gf_dim=64, df_dim=64,
-                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True, dataset_name='default'):
+                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
         """
 
         Args:
@@ -59,7 +59,6 @@ class DCGAN(object):
         self.g_s_bn3 = batch_norm(batch_size, name='g_s_bn3')
         self.g_s_bn4 = batch_norm(batch_size, convolutional=False, name='g_s_bn4')
 
-        self.dataset_name = dataset_name
         self.build_model(is_train)
 
     def build_model(self, is_train):
@@ -70,11 +69,13 @@ class DCGAN(object):
         self.images = images
         if is_train:
             self.sketches = sketches
-            self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
+            if self.z_dim:
+                self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
             self.sketches = tf.placeholder(tf.float32, [None, self.sample_size,
                                                         self.sample_size, 1])
-            self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+            if self.z_dim:
+                self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
 
         with tf.variable_scope('generator') as scope:
             self.G = self.generator(self.sketches, self.z)
@@ -186,7 +187,7 @@ class DCGAN(object):
 
             return tf.nn.sigmoid(linear(h2, 1, 'd_h3_lin'))
 
-    def generator(self, sketches, z=None, y=None):
+    def generator(self, sketches, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
         s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
@@ -194,8 +195,8 @@ class DCGAN(object):
         s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
         # TODO: Introduce batch normalization here.
         self.abstract_representation = lrelu(linear(s3_flat, self.gfc_dim, 'g_s4_lin'))
-        if z:
-            self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
+        if self.z_dim:
+            self.abstract_representation = tf.concat(1, [self.abstract_representation, self.z])
 
         if not self.y_dim:
             # project `abstract representation` and reshape
@@ -241,9 +242,10 @@ class DCGAN(object):
         tf.scalar_summary('d_loss', self.d_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
         tf.histogram_summary('d_h0', self.d_h0)
-        with tf.variable_scope('z_stats') as scope:
-            length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
-            tf.scalar_summary('length_z', length)
+        if self.z_dim:
+            with tf.variable_scope('z_stats') as scope:
+                length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
+                tf.scalar_summary('length_z', length)
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
