@@ -8,7 +8,7 @@ from utils import *
 from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
 
 class DCGAN(object):
-    def __init__(self, sess, image_size=108,
+    def __init__(self, sess,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
                  y_dim=None, z_dim=512, gf_dim=64, df_dim=64,
                  gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
@@ -27,7 +27,6 @@ class DCGAN(object):
         """
         self.sess = sess
         self.batch_size = batch_size
-        self.image_size = image_size
         self.sample_size = sample_size
         self.image_shape = image_shape
 
@@ -177,26 +176,30 @@ class DCGAN(object):
         s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
-        s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
+        # Size after 4 convolutions with stride 2.
+        downsampled_size = self.image_size // 2 ** 4
+
+        s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*downsampled_size*downsampled_size])
         self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
         if z:
             self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 
         # project `abstract representation` and reshape
-        h0 = tf.reshape(linear(self.abstract_representation, self.gf_dim*8*4*4, 'g_h0_lin'),
-                        [-1, 4, 4, self.gf_dim * 8])
+        h0 = tf.reshape(linear(self.abstract_representation,
+                               self.gf_dim*8*downsampled_size*downsampled_size, 'g_h0_lin'),
+                        [-1, downsampled_size, downsampled_size, self.gf_dim * 8])
         h0 = tf.nn.relu(self.g_bn0(h0))
 
-        h1 = deconv2d(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
+        h1 = deconv2d(h0, [self.batch_size, downsampled_size * 2, downsampled_size * 2, self.gf_dim*4], name='g_h1')
         h1 = tf.nn.relu(self.g_bn1(h1))
 
-        h2 = deconv2d(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
+        h2 = deconv2d(h1, [self.batch_size, downsampled_size * 4, downsampled_size * 4, self.gf_dim*2], name='g_h2')
         h2 = tf.nn.relu(self.g_bn2(h2))
 
-        h3 = deconv2d(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
+        h3 = deconv2d(h2, [self.batch_size, downsampled_size * 8, downsampled_size * 8, self.gf_dim*1], name='g_h3')
         h3 = tf.nn.relu(self.g_bn3(h3))
 
-        h4 = deconv2d(h3, [self.batch_size, 64, 64, self.c_dim], name='g_h4')
+        h4 = deconv2d(h3, [self.batch_size, downsampled_size * 16, downsampled_size * 16, self.c_dim], name='g_h4')
 
         return tf.nn.tanh(h4)
 
