@@ -5,6 +5,7 @@ from __future__ import print_function
 import numpy
 from PIL import Image
 from input_pipeline_rendered_data import *
+from random import shuffle
 
 tf.app.flags.DEFINE_string('directory', '/tmp', 'Place to dump file')
 tf.app.flags.DEFINE_string('name', 'recolor_chairs', 'Name of dump to be produced.')
@@ -38,8 +39,9 @@ def main(argv):
     if len(sketched_files) != len(rendered_files):
         raise Exception("Not same amount of files for different features.")
     print('Writing {} samples to {}'.format(len(rendered_files), filename))
-
-    for idx, (rendered_file, sketch_file) in list(enumerate(zip(rendered_files, sketched_files))):
+    zipped = zip(rendered_files, sketched_files)
+    shuffle(zipped)
+    for idx, (rendered_file, sketch_file) in list(enumerate(zipped)):
         pic = Image.open(rendered_file)
         pic_data = numpy.array(pic.getdata(), dtype=np.uint8)
         if pic_data.shape[1] == 4:

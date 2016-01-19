@@ -67,11 +67,13 @@ class DCGAN(object):
         self.images = images
         if is_train:
             self.sketches = sketches
-            self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
+            if self.z_dim:
+                self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
             self.sketches = tf.placeholder(tf.float32, [None, self.sample_size,
                                                         self.sample_size, 1])
-            self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
+            if self.z_dim:
+                self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
 
         with tf.variable_scope('generator') as scope:
             self.G = self.generator(self.sketches, self.z)
@@ -130,7 +132,7 @@ class DCGAN(object):
                 _, _, errD_fake, errD_real, errG, _ =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                    self.d_loss_real, self.g_loss, self.bn_assigners])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                # self.sess.run([g_optim, self.bn_assigners])
+                self.sess.run([g_optim, self.bn_assigners])
                 toc = time.time()
 
                 counter += 1
@@ -208,9 +210,10 @@ class DCGAN(object):
         tf.scalar_summary('d_loss', self.d_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
         tf.histogram_summary('d_h0', self.d_h0)
-        with tf.variable_scope('z_stats') as scope:
-            length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
-            tf.scalar_summary('length_z', length)
+        if self.z_dim:
+            with tf.variable_scope('z_stats') as scope:
+                length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
+                tf.scalar_summary('length_z', length)
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"

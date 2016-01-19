@@ -101,9 +101,8 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
                             sketched_files, augment_color=True)
 
 
-def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_queue_size=3000):
-  with tf.device('/cpu:0'):
-    with tf.variable_scope('dump_reader') as scope:
+def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_queue_size=1000):
+    with tf.variable_scope('dump_reader'):
       reader = tf.TFRecordReader()
       all_files = glob.glob(dump_file + '*')
       files = tf.train.string_input_producer(all_files, num_epochs=epochs)
