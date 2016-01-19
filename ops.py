@@ -20,7 +20,7 @@ class batch_norm(object):
             self.scale_after_normalization = scale_after_normalization
             self.name=name
 
-    def __call__(self, x, train=True):
+    def __call__(self, x):
         shape = x.get_shape().as_list()
         # 'reuse' flag is inherited from upper scope.
         reuse_upper = tf.get_variable_scope().reuse
