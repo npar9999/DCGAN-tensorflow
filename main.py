@@ -48,7 +48,7 @@ def main(_):
             if not os.path.exists(FLAGS.summary_dir):
                 os.makedirs(FLAGS.summary_dir)
 
-            dcgan.train(FLAGS)
+            dcgan.train(FLAGS, run_folder)
         else:
             test_files = glob.glob('test_sketches/*.png')
             FLAGS.batch_size = 1

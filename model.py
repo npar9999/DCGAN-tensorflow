@@ -101,7 +101,7 @@ class DCGAN(object):
         self.make_summary_ops()
         self.saver = tf.train.Saver(self.d_vars + self.g_vars, max_to_keep=0)
 
-    def train(self, config):
+    def train(self, config, run_string="???"):
         """Train DCGAN"""
 
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
@@ -136,8 +136,8 @@ class DCGAN(object):
                 toc = time.time()
 
                 counter += 1
-                print("Step: [%4d] time: %4f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f" \
-                    % (counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
+                print("Run: %s, Step: [%4d] time: %4.1f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f"
+                    % (run_string, counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
