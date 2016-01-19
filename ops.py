@@ -22,9 +22,7 @@ class batch_norm(object):
 
     def __call__(self, x):
         shape = x.get_shape().as_list()
-        # 'reuse' flag is inherited from upper scope.
-        reuse_upper = tf.get_variable_scope().reuse
-        with tf.variable_scope(self.name, reuse=reuse_upper) as scope:
+        with tf.variable_scope(self.name) as scope:
             depth = shape[-1]
             self.gamma = tf.get_variable("gamma", shape=[depth],
                                 initializer=tf.random_normal_initializer(1., 0.02))
@@ -36,11 +34,11 @@ class batch_norm(object):
             self.variance = tf.get_variable('variance', shape=[depth],
                                         initializer=tf.constant_initializer(1),
                                         trainable=False)
-            # Add to assigners.
-            if not reuse_upper:
+            
+            # Add to assigners if not already added previously.
+            if not tf.get_variable_scope().reuse:
                 batch_norm.assigners.append(self.ema.apply([self.mean, self.variance]))
 
-            # TODO: properly differentiate here between training and testing.
             if self.convolutional:
                 x_unflattened = x
             else:
