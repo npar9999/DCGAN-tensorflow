@@ -123,4 +123,4 @@ def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, min_que
       return tf.train.shuffle_batch([sketch, image], batch_size=batch_size,
                                     capacity=min_queue_size + batch_size*16,
                                     min_after_dequeue=min_queue_size,
-                                    num_threads=2)
+                                    num_threads=3)
