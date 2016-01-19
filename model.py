@@ -11,7 +11,7 @@ class DCGAN(object):
     def __init__(self, sess, image_size=108,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
                  y_dim=None, z_dim=512, gf_dim=64, df_dim=64,
-                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True, dataset_name='default'):
+                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
         """
 
         Args:
@@ -43,23 +43,20 @@ class DCGAN(object):
         self.c_dim = c_dim
 
         # batch normalization : deals with poor initialization helps gradient flow
-        self.d_bn1 = batch_norm(batch_size, name='d_bn1')
-        self.d_bn2 = batch_norm(batch_size, name='d_bn2')
-        if not self.y_dim:
-            self.d_bn3 = batch_norm(batch_size, name='d_bn3')
+        self.d_bn1 = batch_norm(is_train, name='d_bn1')
+        self.d_bn2 = batch_norm(is_train, name='d_bn2')
+        self.d_bn3 = batch_norm(is_train, name='d_bn3')
 
-        self.g_bn0 = batch_norm(batch_size, name='g_bn0')
-        self.g_bn1 = batch_norm(batch_size, name='g_bn1')
-        self.g_bn2 = batch_norm(batch_size, name='g_bn2')
-        if not self.y_dim:
-            self.g_bn3 = batch_norm(batch_size, name='g_bn3')
+        self.g_bn0 = batch_norm(is_train, name='g_bn0')
+        self.g_bn1 = batch_norm(is_train, name='g_bn1')
+        self.g_bn2 = batch_norm(is_train, name='g_bn2')
+        self.g_bn3 = batch_norm(is_train, name='g_bn3')
 
-        self.g_s_bn1 = batch_norm(batch_size, name='g_s_bn1')
-        self.g_s_bn2 = batch_norm(batch_size, name='g_s_bn2')
-        self.g_s_bn3 = batch_norm(batch_size, name='g_s_bn3')
-        self.g_s_bn4 = batch_norm(batch_size, convolutional=False, name='g_s_bn4')
+        self.g_s_bn1 = batch_norm(is_train, name='g_s_bn1')
+        self.g_s_bn2 = batch_norm(is_train, name='g_s_bn2')
+        self.g_s_bn3 = batch_norm(is_train, name='g_s_bn3')
+        self.g_s_bn4 = batch_norm(is_train, convolutional=False, name='g_s_bn4')
 
-        self.dataset_name = dataset_name
         self.build_model(is_train)
 
     def build_model(self, is_train):
@@ -92,7 +89,9 @@ class DCGAN(object):
         with tf.variable_scope('generator_loss') as scope:
             self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
 
+        self.bn_assigners = tf.group(*batch_norm.assigners)
 
+        # TODO: update bn_assigners after learning steps (and see that they're saved/restored).
         t_vars = tf.trainable_variables()
 
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
@@ -129,10 +128,10 @@ class DCGAN(object):
                 # Update D and G network
                 tic = time.time()
 
-                _, _, errD_fake, errD_real, errG =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
-                                                                   self.d_loss_real, self.g_loss])
+                _, _, errD_fake, errD_real, errG, _ =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
+                                                                   self.d_loss_real, self.g_loss, self.bn_assigners])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                self.sess.run(g_optim)
+                # self.sess.run([g_optim, self.bn_assigners])
                 toc = time.time()
 
                 counter += 1
@@ -156,35 +155,20 @@ class DCGAN(object):
         finally:
             # When done, ask the threads to stop.
             coord.request_stop()
+            coord.join(threads)
 
     def discriminator(self, image, sketches, reuse=False, y=None):
         if reuse:
             tf.get_variable_scope().reuse_variables()
 
-        if not self.y_dim:
-            concated = tf.concat(3, [image, sketches])
-            self.d_h0 = lrelu(conv2d(concated, self.df_dim, name='d_h0_conv'))
-            h1 = lrelu(self.d_bn1(conv2d(self.d_h0, self.df_dim*2, name='d_h1_conv')))
-            h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
-            h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
+        concated = tf.concat(3, [image, sketches])
+        self.d_h0 = lrelu(conv2d(concated, self.df_dim, name='d_h0_conv'))
+        h1 = lrelu(self.d_bn1(conv2d(self.d_h0, self.df_dim*2, name='d_h1_conv')))
+        h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
+        h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
+        h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
 
-            return tf.nn.sigmoid(h4)
-        else:
-            yb = tf.reshape(y, [None, 1, 1, self.y_dim])
-            x = conv_cond_concat(image, yb)
-
-            h0 = lrelu(spatial_conv(x, self.c_dim + self.y_dim))
-            h0 = conv_cond_concat(h0, yb)
-
-            h1 = lrelu(self.d_bn1(conv2d(h0, self.df_dim + self.y_dim)))
-            h1 = tf.reshape(h1, [h1.get_shape()[0], -1])
-            h1 = tf.concat(1, [h1, y])
-
-            h2 = lrelu(self.d_bn2(linear(h1, self.dfc_dim, 'd_h2_lin')))
-            h2 = tf.concat(1, [h2, y])
-
-            return tf.nn.sigmoid(linear(h2, 1, 'd_h3_lin'))
+        return tf.nn.sigmoid(h4)
 
     def generator(self, sketches, z=None, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
@@ -193,43 +177,28 @@ class DCGAN(object):
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*4*4])
         # TODO: Introduce batch normalization here.
-        self.abstract_representation = lrelu(linear(s3_flat, self.gfc_dim, 'g_s4_lin'))
+        self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
         if z:
             self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
 
-        if not self.y_dim:
-            # project `abstract representation` and reshape
-            h0 = tf.reshape(linear(self.abstract_representation, self.gf_dim*8*4*4, 'g_h0_lin'),
-                            [-1, 4, 4, self.gf_dim * 8])
-            h0 = tf.nn.relu(self.g_bn0(h0))
+        # project `abstract representation` and reshape
+        h0 = tf.reshape(linear(self.abstract_representation, self.gf_dim*8*4*4, 'g_h0_lin'),
+                        [-1, 4, 4, self.gf_dim * 8])
+        h0 = tf.nn.relu(self.g_bn0(h0))
 
-            h1 = deconv2d(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
-            h1 = tf.nn.relu(self.g_bn1(h1))
+        h1 = deconv2d(h0, [self.batch_size, 8, 8, self.gf_dim*4], name='g_h1')
+        h1 = tf.nn.relu(self.g_bn1(h1))
 
-            h2 = deconv2d(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
-            h2 = tf.nn.relu(self.g_bn2(h2))
+        h2 = deconv2d(h1, [self.batch_size, 16, 16, self.gf_dim*2], name='g_h2')
+        h2 = tf.nn.relu(self.g_bn2(h2))
 
-            h3 = deconv2d(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
-            h3 = tf.nn.relu(self.g_bn3(h3))
+        h3 = deconv2d(h2, [self.batch_size, 32, 32, self.gf_dim*1], name='g_h3')
+        h3 = tf.nn.relu(self.g_bn3(h3))
 
-            h4 = deconv2d(h3, [self.batch_size, 64, 64, self.c_dim], name='g_h4')
+        h4 = deconv2d(h3, [self.batch_size, 64, 64, self.c_dim], name='g_h4')
 
-            return tf.nn.tanh(h4)
-        else:
-            yb = tf.reshape(y, [None, 1, 1, self.y_dim])
-            z = tf.concat(1, [z, y])
+        return tf.nn.tanh(h4)
 
-            h0 = tf.nn.relu(self.g_bn0(linear(z, self.gfc_dim, 'g_h0_lin')))
-            h0 = tf.concat(1, [h0, y])
-
-            h1 = tf.nn.relu(self.g_bn1(linear(z, self.gf_dim*2*7*7, 'g_h1_lin')))
-            h1 = tf.reshape(h1, [None, 7, 7, self.gf_dim * 2])
-            h1 = conv_cond_concat(h1, yb)
-
-            h2 = tf.nn.relu(self.g_bn2(deconv2d(h1, self.gf_dim, name='g_h2')))
-            h2 = conv_cond_concat(h2, yb)
-
-            return tf.nn.sigmoid(deconv2d(h2, self.c_dim, name='g_h3'))
 
     def make_summary_ops(self):
         tf.image_summary('generator', self.G)

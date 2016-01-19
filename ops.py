@@ -7,32 +7,69 @@ from tensorflow.python.framework import ops
 from utils import *
 
 class batch_norm(object):
+    assigners = []
+
     """Code modification of http://stackoverflow.com/a/33950177"""
-    def __init__(self, batch_size, convolutional=True, epsilon=1e-5, momentum = 0.1, name="batch_norm"):
+    def __init__(self, is_train, convolutional=True, decay=0.99, epsilon=1e-5, scale_after_normalization=True,
+                 name="batch_norm"):
         with tf.variable_scope(name) as scope:
             self.convolutional = convolutional
+            self.is_train = is_train
             self.epsilon = epsilon
-            self.momentum = momentum
-            self.batch_size = batch_size
-
-            self.ema = tf.train.ExponentialMovingAverage(decay=self.momentum)
+            self.ema = tf.train.ExponentialMovingAverage(decay=decay)
+            self.scale_after_normalization = scale_after_normalization
             self.name=name
 
     def __call__(self, x, train=True):
         shape = x.get_shape().as_list()
-
-        with tf.variable_scope(self.name) as scope:
-            self.gamma = tf.get_variable("gamma", [shape[-1]],
+        # 'reuse' flag is inherited from upper scope.
+        reuse_upper = tf.get_variable_scope().reuse
+        with tf.variable_scope(self.name, reuse=reuse_upper) as scope:
+            depth = shape[-1]
+            self.gamma = tf.get_variable("gamma", shape=[depth],
                                 initializer=tf.random_normal_initializer(1., 0.02))
-            self.beta = tf.get_variable("beta", [shape[-1]],
+            self.beta = tf.get_variable("beta", shape=[depth],
                                 initializer=tf.constant_initializer(0.))
+            self.mean = tf.get_variable('mean', shape=[depth],
+                                        initializer=tf.constant_initializer(0),
+                                        trainable=False)
+            self.variance = tf.get_variable('variance', shape=[depth],
+                                        initializer=tf.constant_initializer(1),
+                                        trainable=False)
+            # Add to assigners.
+            if not reuse_upper:
+                batch_norm.assigners.append(self.ema.apply([self.mean, self.variance]))
+
+            # TODO: properly differentiate here between training and testing.
             if self.convolutional:
-              mean, variance = tf.nn.moments(x, [0, 1, 2])
+                x_unflattened = x
             else:
-              mean, variance = tf.nn.moments(x, [0])
-            return tf.nn.batch_norm_with_global_normalization(
-                x, mean, variance, self.beta, self.gamma, self.epsilon,
-                scale_after_normalization=True)
+                x_unflattened = tf.reshape(x, [-1, 1, 1, depth])
+
+            if self.is_train:
+                if self.convolutional:
+                    mean, variance = tf.nn.moments(x, [0, 1, 2])
+                else:
+                    mean, variance = tf.nn.moments(x, [0])
+
+                assign_mean = self.mean.assign(mean)
+                assign_variance = self.variance.assign(variance)
+                with tf.control_dependencies([assign_mean, assign_variance]):
+                    normed = tf.nn.batch_norm_with_global_normalization(
+                        x_unflattened, mean, variance, self.beta, self.gamma, self.epsilon,
+                        scale_after_normalization=self.scale_after_normalization)
+            else:
+                mean = self.ema.average(self.mean)
+                variance = self.ema.average(self.variance)
+                local_beta = tf.identity(self.beta)
+                local_gamma = tf.identity(self.gamma)
+                normed = tf.nn.batch_norm_with_global_normalization(
+                      x_unflattened, mean, variance, local_beta, local_gamma,
+                      self.epsilon, self.scale_after_normalization)
+            if self.convolutional:
+                return normed
+            else:
+                return tf.reshape(normed, [-1, depth])
 
 def binary_cross_entropy_with_logits(logits, targets, name=None):
     """Computes binary cross entropy given `logits`.
