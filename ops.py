@@ -8,6 +8,7 @@ from utils import *
 
 class batch_norm(object):
     assigners = []
+    shadow_variables = []
 
     """Code modification of http://stackoverflow.com/a/33950177"""
     def __init__(self, is_train, convolutional=True, decay=0.99, epsilon=1e-5, scale_after_normalization=True,
@@ -38,6 +39,7 @@ class batch_norm(object):
             # Add to assigners if not already added previously.
             if not tf.get_variable_scope().reuse:
                 batch_norm.assigners.append(self.ema.apply([self.mean, self.variance]))
+                batch_norm.shadow_variables += [self.ema.average(self.mean), self.ema.average(self.variance)]
 
             if self.convolutional:
                 x_unflattened = x

@@ -100,7 +100,10 @@ class DCGAN(object):
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
 
         self.make_summary_ops()
-        self.saver = tf.train.Saver(self.d_vars + self.g_vars, max_to_keep=0)
+        self.saver = tf.train.Saver(self.d_vars + self.g_vars +
+                                    batch_norm.shadow_variables,
+                                    max_to_keep=0)
+
 
     def train(self, config, run_string="???"):
         """Train DCGAN"""
@@ -153,7 +156,7 @@ class DCGAN(object):
                     save_images(sample_images, [8, 8], os.path.join(config.summary_dir, 'train_%s_images.png' % counter))
                     save_images(sample_sketches, [8, 8], os.path.join(config.summary_dir, 'train_%s_sketches.png' % counter))
 
-                if np.mod(counter, 2000) == 2:
+                if np.mod(counter, 2000) == 100:
                     self.save(config.checkpoint_dir, counter)
 
 
