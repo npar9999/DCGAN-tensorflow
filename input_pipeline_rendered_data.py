@@ -101,25 +101,33 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
                             sketched_files, augment_color=True)
 
 
-def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs, img_size=64, min_queue_size=1000):
-    with tf.variable_scope('dump_reader'):
-      reader = tf.TFRecordReader()
-      all_files = glob.glob(dump_file + '*')
-      files = tf.train.string_input_producer(all_files, num_epochs=epochs)
-      _, serialized_example = reader.read(files)
-      features = tf.parse_single_example(
-          serialized_example,
-          features={'image': tf.FixedLenFeature([], tf.string),
-                    'sketch': tf.FixedLenFeature([], tf.string)})
-      image = tf.decode_raw(features['image'], tf.uint8)
-      image.set_shape([img_size * img_size * 3])
-      image = preprocess(image, img_size,
-                         whiten=True, color=True, augment=True, augment_color=True)
-      sketch = tf.decode_raw(features['sketch'], tf.uint8)
-      sketch.set_shape([img_size * img_size * 1])
-      sketch = preprocess(sketch, img_size,
-                          whiten=False, color=False, augment=True)
-      return tf.train.shuffle_batch([sketch, image], batch_size=batch_size,
-                                    capacity=min_queue_size + batch_size*16,
-                                    min_after_dequeue=min_queue_size,
-                                    num_threads=3)
+def read_tensor_record(filename_queue, img_size):
+  reader = tf.TFRecordReader()
+  _, serialized_example = reader.read(filename_queue)
+  features = tf.parse_single_example(
+      serialized_example,
+      features={'image': tf.FixedLenFeature([], tf.string),
+                'sketch': tf.FixedLenFeature([], tf.string)})
+  image = tf.decode_raw(features['image'], tf.uint8)
+  image.set_shape([img_size * img_size * 3])
+  image = preprocess(image, img_size,
+                     whiten=True, color=True, augment=True, augment_color=True)
+  sketch = tf.decode_raw(features['sketch'], tf.uint8)
+  sketch.set_shape([img_size * img_size * 1])
+  sketch = preprocess(sketch, img_size,
+                      whiten=False, color=False, augment=True)
+  return sketch, image
+
+
+def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs,
+                                          image_size=64, min_queue_size=2000, read_threads=4):
+  with tf.variable_scope('dump_reader'):
+    all_files = glob.glob(dump_file + '*')
+    filename_queue = tf.train.string_input_producer(all_files, num_epochs=epochs)
+
+    example_list = [read_tensor_record(filename_queue, image_size)
+                for _ in range(read_threads)]
+
+    return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
+                                       capacity=min_queue_size + batch_size * 16,
+                                       min_after_dequeue=min_queue_size)

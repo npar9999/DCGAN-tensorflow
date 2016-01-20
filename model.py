@@ -62,7 +62,9 @@ class DCGAN(object):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
-        sketches, images = get_chair_pipeline_training_from_dump('recolor_chairs.tfrecords', self.batch_size, 10000)
+        self.image_size = 64
+        sketches, images = get_chair_pipeline_training_from_dump('recolor_chairs.tfrecords', self.batch_size,
+                                                                 10000, image_size=self.image_size )
         self.images = images
         if is_train:
             self.sketches = sketches
