@@ -109,13 +109,17 @@ class DCGAN(object):
                           .minimize(self.d_loss, var_list=self.d_vars)
         g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
+
+        # See that moving average is also updated with g_optim.
+        with tf.control_dependencies([g_optim]):
+            g_optim = tf.group(self.bn_assigners)
+
         tf.initialize_all_variables().run()
         if config.continue_from:
             checkpoint_dir = os.path.join(os.path.dirname(config.checkpoint_dir), config.continue_from)
             print('Loading variables from ' + checkpoint_dir)
             self.load(checkpoint_dir)
 
-        counter = 1
         start_time = time.time()
 
         coord = tf.train.Coordinator()
@@ -130,14 +134,14 @@ class DCGAN(object):
                 # Update D and G network
                 tic = time.time()
 
-                _, _, errD_fake, errD_real, errG, _ =  self.sess.run([d_optim, g_optim, self.d_loss_fake,
-                                                                   self.d_loss_real, self.g_loss, self.bn_assigners])
+                _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
+                                                                  self.d_loss_real, self.g_loss])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                self.sess.run([g_optim, self.bn_assigners])
+                self.sess.run(g_optim)
                 toc = time.time()
 
                 counter += 1
-                print("Run: %s, Step: [%4d] time: %4.1f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f"
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f"
                     % (run_string, counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
