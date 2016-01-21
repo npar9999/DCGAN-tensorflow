@@ -61,11 +61,9 @@ class DCGAN(object):
     def build_model(self, is_train):
         if self.y_dim:
             self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
-
-        self.image_size = 64
-        sketches, images = get_chair_pipeline_training_from_dump('recolor_chairs.tfrecords', self.batch_size,
-                                                                 10000, image_size=self.image_size )
-        self.images = images
+        self.image_size = 128
+        sketches, self.images = get_chair_pipeline_training_from_dump('recolor_chairs_128x128.tfrecords',
+                                                                 self.batch_size, 10000, image_size=self.image_size)
         if is_train:
             self.sketches = sketches
             if self.z_dim:
@@ -141,6 +139,7 @@ class DCGAN(object):
                                                                   self.d_loss_real, self.g_loss])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                 self.sess.run(g_optim)
+                self.sess.run(g_optim)      
                 toc = time.time()
 
                 counter += 1
