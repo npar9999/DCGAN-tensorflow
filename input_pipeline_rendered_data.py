@@ -148,12 +148,13 @@ def read_tensor_record(filename_queue, img_size):
 def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs,
                                           image_size=64, min_queue_size=2000, read_threads=4):
   with tf.variable_scope('dump_reader'):
-    all_files = glob.glob(dump_file + '*')
-    filename_queue = tf.train.string_input_producer(all_files, num_epochs=epochs)
+    with tf.device('/cpu:0'):
+      all_files = glob.glob(dump_file + '*')
+      filename_queue = tf.train.string_input_producer(all_files, num_epochs=epochs)
 
-    example_list = [read_tensor_record(filename_queue, image_size)
-                for _ in range(read_threads)]
+      example_list = [read_tensor_record(filename_queue, image_size)
+                      for _ in range(read_threads)]
 
-    return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
-                                       capacity=min_queue_size + batch_size * 16,
-                                       min_after_dequeue=min_queue_size)
+      return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
+                                         capacity=min_queue_size + batch_size * 16,
+                                         min_after_dequeue=min_queue_size)
