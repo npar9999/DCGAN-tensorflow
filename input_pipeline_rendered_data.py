@@ -51,11 +51,15 @@ def preprocess(image_tensor, img_size, whiten=True, color=False,
   else:
     out = tf.reshape(image_tensor, [img_size, img_size, 1])
   if augment:
-    out = tf.image.random_flip_left_right(out, seed)
-    # TODO: add more data augmentation.
+    out = tf.image.random_flip_left_right(out, seed=seed)
+    # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
+    # (randomly distributed left or right), then padding zeros from the left.
+    max_x_offset = 10
+    out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed= seed)
+    out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
-    out = tf.image.random_hue(out, 0.5, seed)
-    out = tf.image.random_saturation(out, 0.8, 1.2, seed)
+    out = tf.image.random_hue(out, 0.5, seed=seed)
+    out = tf.image.random_saturation(out, 0.8, 1.2, seed=seed)
   if whiten:
     # Bring to range [-1, 1]
     out = tf.cast(out, tf.float32) * (2. / 255) - 1
