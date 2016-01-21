@@ -67,10 +67,9 @@ def preprocess(image_tensor, img_size, whiten=True, color=False,
     out = tf.cast(out, tf.float32) * (1. / 255)
   return out
 
-def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color,
+def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, filename_seed=233,
                         augment=True, capacity=256, augment_color=False):
   with tf.variable_scope(name) as scope:
-    filename_seed = 233
     gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
                                                          capacity=capacity, shuffle=shuffle)
     _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
@@ -78,14 +77,31 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color,
     return preprocess(tf.image.decode_png(gray_files, channels), img_size,
                       whiten=whiten, color=color, augment=augment, augment_color=augment_color)
 
+def get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files,
+                       shuffle=True, augment_color=False, filename_seed=233):
+  img = make_image_producer(depth_files, epochs, 'rendered_producer', img_size,
+                            shuffle, filename_seed=filename_seed, whiten=True, color=True, augment_color=augment_color)
+  sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size,
+                                 shuffle, filename_seed=filename_seed, whiten=False, color=False)
+  return sketches, img
+
 
 def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files,
-                       shuffle=True, augment_color=False):
-  img = make_image_producer(depth_files, epochs, 'rendered_producer', img_size,
-                            shuffle, whiten=True, color=True, augment_color=augment_color)
-  sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size,
-                                 shuffle, whiten=False, color=False)
-  return tf.train.batch([sketches, img], batch_size=batch_size, num_threads=1, capacity=256 * 16)
+                       shuffle=True, augment_color=False, filename_seed=233):
+  examples = get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files, shuffle=shuffle,
+                                           augment_color=augment_color, filename_seed=filename_seed)
+  return tf.train.batch(examples, batch_size=batch_size, num_threads=1, capacity=256 * 16)
+
+
+def get_chair_pipeline_multi_thread(batch_size, epochs, img_size, depth_files, sketch_files,
+                                    augment_color=False, min_queue_size=3000, read_threads=4):
+  example_list = [get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files, shuffle=True,
+                                                augment_color=augment_color, filename_seed=(i + 1) * 42)
+                  for i in range(read_threads)]
+
+  return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
+                                     capacity=min_queue_size + batch_size * 16,
+                                     min_after_dequeue=min_queue_size)
 
 
 def get_chair_pipeline_training(batch_size, epochs):
@@ -100,9 +116,8 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
   img_size = 64
   rendered_files = [x.strip() for x in open('recolor_experiment_shaded_images.txt').readlines()]
   sketched_files = [x.strip() for x in open('recolor_experiment_sketch_images.txt').readlines()]
-
-  return get_chair_pipeline(batch_size, epochs, img_size, rendered_files,
-                            sketched_files, augment_color=True)
+  return get_chair_pipeline_multi_thread(batch_size, epochs, img_size, rendered_files,
+                                         sketched_files, augment_color=True)
 
 
 def read_tensor_record(filename_queue, img_size):
