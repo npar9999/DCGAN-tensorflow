@@ -42,8 +42,8 @@ def get_sketch_files(folder, size_suffix='64x64'):
   return get_files_cached(folder, 'sketch', '.*r_\d{3}_sketch_' + size_suffix + '.png$')
 
 
-def preprocess(image_tensor, img_size, whiten=True, color=False,
-               augment=True, augment_color=False):
+def preprocess(image_tensor, img_size, whiten='default', color=False,
+               augment=True, augment_color=False, sketch_whiten=False):
   # Use same seed for flipping for every tensor, so they'll be flipped the same.
   seed = 42
   if color:
@@ -51,22 +51,31 @@ def preprocess(image_tensor, img_size, whiten=True, color=False,
   else:
     out = tf.reshape(image_tensor, [img_size, img_size, 1])
   if augment:
-    out = tf.image.random_flip_left_right(out, seed)
-    # TODO: add more data augmentation.
+    out = tf.image.random_flip_left_right(out, seed=seed)
+    # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
+    # (randomly distributed left or right), then padding zeros from the left.
+    max_x_offset = 2
+    out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed= seed)
+    out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
-    out = tf.image.random_hue(out, 0.5, seed)
-    out = tf.image.random_saturation(out, 0.8, 1.2, seed)
-  if whiten:
+    out = tf.image.random_hue(out, 0.5, seed=seed)
+    out = tf.image.random_saturation(out, 0.8, 1.2, seed=seed)
+  if whiten == 'default':
     # Bring to range [-1, 1]
     out = tf.cast(out, tf.float32) * (2. / 255) - 1
+  elif whiten == 'sketch':
+    # Brightest value is set to 1, darkest value to -1, then scaled
+    max = tf.cast(tf.reduce_max(out), tf.float32)
+    min = tf.cast(tf.reduce_min(out), tf.float32)
+    out = (tf.cast(out, tf.float32) - min) * 2. / (max - min) - 1
   else:
-    out = tf.cast(out, tf.float32) * (1. / 255)
+    raise Exception("No whitening specified, aborted")
   return out
 
-def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color,
+
+def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, filename_seed=233,
                         augment=True, capacity=256, augment_color=False):
   with tf.variable_scope(name) as scope:
-    filename_seed = 233
     gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
                                                          capacity=capacity, shuffle=shuffle)
     _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
@@ -75,13 +84,31 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color,
                       whiten=whiten, color=color, augment=augment, augment_color=augment_color)
 
 
-def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files,
-                       shuffle=True, augment_color=False):
+def get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files,
+                       shuffle=True, augment_color=False, filename_seed=233):
   img = make_image_producer(depth_files, epochs, 'rendered_producer', img_size,
-                            shuffle, whiten=True, color=True, augment_color=augment_color)
+                            shuffle, filename_seed=filename_seed, whiten='default', color=True, augment_color=augment_color)
   sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size,
-                                 shuffle, whiten=False, color=False)
-  return tf.train.batch([sketches, img], batch_size=batch_size, num_threads=1, capacity=256 * 16)
+                                 shuffle, filename_seed=filename_seed, whiten='sketch', color=False)
+  return sketches, img
+
+
+def get_chair_pipeline(batch_size, epochs, img_size, depth_files, sketch_files,
+                       shuffle=True, augment_color=False, filename_seed=233):
+  examples = get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files, shuffle=shuffle,
+                                           augment_color=augment_color, filename_seed=filename_seed)
+  return tf.train.batch(examples, batch_size=batch_size, num_threads=1, capacity=256 * 16)
+
+
+def get_chair_pipeline_multi_thread(batch_size, epochs, img_size, depth_files, sketch_files,
+                                    augment_color=False, min_queue_size=3000, read_threads=4):
+  example_list = [get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files, shuffle=True,
+                                                augment_color=augment_color, filename_seed=(i + 1) * 42)
+                  for i in range(read_threads)]
+
+  return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
+                                     capacity=min_queue_size + batch_size * 16,
+                                     min_after_dequeue=min_queue_size)
 
 
 def get_chair_pipeline_training(batch_size, epochs):
@@ -96,9 +123,8 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
   img_size = 64
   rendered_files = [x.strip() for x in open('recolor_experiment_shaded_images.txt').readlines()]
   sketched_files = [x.strip() for x in open('recolor_experiment_sketch_images.txt').readlines()]
-
-  return get_chair_pipeline(batch_size, epochs, img_size, rendered_files,
-                            sketched_files, augment_color=True)
+  return get_chair_pipeline_multi_thread(batch_size, epochs, img_size, rendered_files,
+                                         sketched_files, augment_color=True)
 
 
 def read_tensor_record(filename_queue, img_size):
@@ -111,11 +137,11 @@ def read_tensor_record(filename_queue, img_size):
   image = tf.decode_raw(features['image'], tf.uint8)
   image.set_shape([img_size * img_size * 3])
   image = preprocess(image, img_size,
-                     whiten=True, color=True, augment=True, augment_color=True)
+                     whiten='default', color=True, augment=True, augment_color=True)
   sketch = tf.decode_raw(features['sketch'], tf.uint8)
   sketch.set_shape([img_size * img_size * 1])
   sketch = preprocess(sketch, img_size,
-                      whiten=False, color=False, augment=True)
+                      whiten='sketch', sketch_whiten=True, color=False, augment=True)
   return sketch, image
 
 
