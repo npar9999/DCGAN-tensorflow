@@ -54,7 +54,7 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
     out = tf.image.random_flip_left_right(out, seed=seed)
     # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
     # (randomly distributed left or right), then padding zeros from the left.
-    max_x_offset = 1
+    max_x_offset = 2
     out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed= seed)
     out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
