@@ -53,7 +53,7 @@ def main(_):
             FLAGS.batch_size = 1
             with tf.device('/cpu:0'):
                 test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
-                                                          shuffle=False, whiten=False, color=False, augment=False)
+                                                           shuffle=False, whiten='sketch', color=False, augment=False)
                 test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
                 dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
@@ -63,7 +63,6 @@ def main(_):
                     sketches_for_display = dcgan.sketches
                 # Put it together with sketch again for easy comparison
                 sample_with_sketch = tf.concat(0, [dcgan.G, sketches_for_display])
-                batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
 
             run_restored = FLAGS.continue_from
             used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), run_restored)
@@ -74,12 +73,14 @@ def main(_):
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
+                num_versions = 10
+                batch_z_shape = [num_versions, FLAGS.batch_size, dcgan.z_dim]
+                batch_z_all = np.random.uniform(-1, 1, batch_z_shape)
+
                 for filename in test_files:
                     batch_sketches = test_sketches.eval()
-                    for i in xrange(10):
-                        batch_z_shape = [FLAGS.batch_size, dcgan.z_dim]
-                        #batch_z = np.zeros(batch_z_shape) - 1 + (i / 5)
-                        batch_z = np.random.uniform(-1, 1, batch_z_shape)
+                    for i in xrange(num_versions):
+                        batch_z = batch_z_all[i, :, :]
                         img = sess.run(sample_with_sketch,
                                        feed_dict={dcgan.z: batch_z,
                                                   dcgan.sketches: batch_sketches})
