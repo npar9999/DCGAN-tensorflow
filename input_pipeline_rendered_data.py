@@ -54,7 +54,7 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
     out = tf.image.random_flip_left_right(out, seed=seed)
     # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
     # (randomly distributed left or right), then padding zeros from the left.
-    max_x_offset = 10
+    max_x_offset = 1
     out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed= seed)
     out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
@@ -73,7 +73,7 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
   return out
 
 
-def make_image_producer(files, epochs, name, img_size, shuffle, whiten, sketch_whiten, color, filename_seed=233,
+def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, filename_seed=233,
                         augment=True, capacity=256, augment_color=False):
   with tf.variable_scope(name) as scope:
     gray_filename_queue = tf.train.string_input_producer(files, num_epochs=epochs, seed=filename_seed,
@@ -81,8 +81,7 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, sketch_w
     _, gray_files = tf.WholeFileReader(scope.name).read(gray_filename_queue)
     channels = 3 if color else 1
     return preprocess(tf.image.decode_png(gray_files, channels), img_size,
-                      whiten=whiten, sketch_whiten=sketch_whiten,
-                      color=color, augment=augment, augment_color=augment_color)
+                      whiten=whiten, color=color, augment=augment, augment_color=augment_color)
 
 
 def get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files,
