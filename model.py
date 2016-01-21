@@ -139,7 +139,7 @@ class DCGAN(object):
                                                                   self.d_loss_real, self.g_loss])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
                 self.sess.run(g_optim)
-                self.sess.run(g_optim)      
+                # self.sess.run(g_optim)
                 toc = time.time()
 
                 counter += 1
