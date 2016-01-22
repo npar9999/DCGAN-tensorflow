@@ -25,7 +25,7 @@ def imsave(images, grid_size, path):
 
     for idx, image in enumerate(images):
         i = idx % grid_size[1]
-        j = idx / grid_size[1]
+        j = idx // grid_size[1]
         img[j*h:j*h+h, i*w:i*w+w, :] = image
     return scipy.misc.imsave(path, img)
 
