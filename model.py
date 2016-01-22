@@ -1,6 +1,5 @@
 import os
 import time
-from glob import glob
 import tensorflow as tf
 
 from ops import *
@@ -144,8 +143,9 @@ class DCGAN(object):
                 toc = time.time()
 
                 counter += 1
-                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f"
-                    % (run_string, counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
+                duration = toc - tic
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f"
+                    % (run_string, counter, toc - start_time, duration, self.batch_size / duration, errD_fake+errD_real, errG))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
