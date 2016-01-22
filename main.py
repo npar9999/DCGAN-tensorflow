@@ -49,8 +49,8 @@ def main(_):
 
             dcgan.train(FLAGS, run_folder)
         else:
-            test_files = glob.glob('test_sketches/*.png')
-            FLAGS.batch_size = 1
+            test_files = sorted(glob.glob('test_sketches/*.png'))
+            FLAGS.batch_size = len(test_files)
             with tf.device('/cpu:0'):
                 test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
                                                            shuffle=False, whiten='sketch', color=False, augment=False)
@@ -62,7 +62,8 @@ def main(_):
                 else:
                     sketches_for_display = dcgan.sketches
                 # Put it together with sketch again for easy comparison
-                sample_with_sketch = tf.concat(0, [dcgan.G, sketches_for_display])
+                if FLAGS.batch_size == 1:
+                    sample_with_sketch = tf.concat(0, [dcgan.G, sketches_for_display])
 
             run_restored = FLAGS.continue_from
             used_checkpoint_dir = os.path.join(os.path.dirname(FLAGS.checkpoint_dir), run_restored)
@@ -73,19 +74,34 @@ def main(_):
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
             try:
-                num_versions = 10
+                num_versions = 64
                 batch_z_shape = [num_versions, FLAGS.batch_size, dcgan.z_dim]
-                batch_z_all = np.random.uniform(-1, 1, batch_z_shape)
+                batch_z = np.random.uniform(-1, 1, [num_versions, 1, dcgan.z_dim])
 
-                for filename in test_files:
-                    batch_sketches = test_sketches.eval()
-                    for i in xrange(num_versions):
-                        batch_z = batch_z_all[i, :, :]
-                        img = sess.run(sample_with_sketch,
-                                       feed_dict={dcgan.z: batch_z,
-                                                  dcgan.sketches: batch_sketches})
-                        filename_out = 'test_sketches_to_rendered_out/{}_{}_with_image.png'.format(os.path.basename(filename), str(i).zfill(3))
-                        save_images(img, [1, 2], filename_out)
+                # Every img in one batch should share the same random vector, use numpy broadcasting here to achieve that.
+                batch_z_all = np.zeros(batch_z_shape)
+                batch_z_all[:, :, :] = batch_z
+
+                batch_sketches = test_sketches.eval()
+                one_chair_different_randoms = np.zeros([FLAGS.batch_size, num_versions, dcgan.image_size, dcgan.image_size, 3])
+                for i in xrange(num_versions):
+                    batch_z = batch_z_all[i, :, :]
+                    img = sess.run(dcgan.G,
+                                   feed_dict={dcgan.z: batch_z,
+                                              dcgan.sketches: batch_sketches})
+                    filename_out = 'test_sketches_to_rendered_out/{}_img.png'.format(str(i).zfill(3))
+                    grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
+                    save_images(img, [grid_size, grid_size], filename_out)
+                    for j in xrange(FLAGS.batch_size):
+                        one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
+                    filename_out = 'test_sketches_to_rendered_out/{}_sketch.png'.format(str(i).zfill(3))
+                    save_images(batch_sketches, [grid_size, grid_size], filename_out)
+
+                for j in xrange(FLAGS.batch_size):
+                    grid_size = np.ceil(np.sqrt(num_versions))
+                    save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size],
+                                'test_sketches_to_rendered_out/chair_{}_different_randoms.png'.format(str(j).zfill(3)))
+
             except tf.errors.OutOfRangeError as e:
                 print('Done')
             finally:
