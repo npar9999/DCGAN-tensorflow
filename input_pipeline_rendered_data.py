@@ -59,7 +59,7 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
     out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
     out = tf.image.random_hue(out, 0.5, seed=seed*3)
-    out = tf.image.random_saturation(out, 0.8, 1.2, seed=seed*4)
+    out = tf.image.random_saturation(out, 0.0, 1.5, seed=seed*4)
   if whiten == 'default':
     # Bring to range [-1, 1]
     out = tf.cast(out, tf.float32) * (2. / 255) - 1
