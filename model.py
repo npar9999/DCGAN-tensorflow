@@ -69,8 +69,8 @@ class DCGAN(object):
             if self.z_dim:
                 self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
-            self.sketches = tf.placeholder(tf.float32, [None, self.sample_size,
-                                                        self.sample_size, 1])
+            self.sketches = tf.placeholder(tf.float32, [None, self.image_size,
+                                                        self.image_size, 1])
             if self.z_dim:
                 self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
 

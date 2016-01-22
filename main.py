@@ -49,10 +49,11 @@ def main(_):
 
             dcgan.train(FLAGS, run_folder)
         else:
-            test_files = sorted(glob.glob('test_sketches/*.png'))
+            # TODO: Possibly upscale smaller sketches to this resolution.
+            test_files = sorted(glob.glob('test_sketches_128x128/*.png'))
             FLAGS.batch_size = len(test_files)
             with tf.device('/cpu:0'):
-                test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
+                test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 128,
                                                            shuffle=False, whiten='sketch', color=False, augment=False)
                 test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
