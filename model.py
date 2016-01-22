@@ -191,20 +191,7 @@ class DCGAN(object):
         # Size after 4 convolutions with stride 2.
         downsampled_size = self.image_size // 2 ** 4
 
-        # s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*downsampled_size*downsampled_size])
-        # self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
-        # if z:
-        #     self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
-        #
-        # # project `abstract representation` and reshape
-        # h0 = tf.reshape(linear(self.abstract_representation,
-        #                        self.gf_dim*8*downsampled_size*downsampled_size, 'g_h0_lin'),
-        #                 [-1, downsampled_size, downsampled_size, self.gf_dim * 8])
-        # h0 = tf.nn.relu(self.g_bn0(h0))
-
-        z_slices = tf.mul(tf.ones([self.batch_size, downsampled_size, downsampled_size, self.z_dim]),
-                          tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
-        self.abstract_representation = tf.concat(3, [s3, z_slices])
+        self.abstract_representation = s3
 
         h1 = deconv2d(self.abstract_representation, [self.batch_size, downsampled_size * 2,
                                                      downsampled_size * 2, self.gf_dim*4 + self.z_dim],
@@ -216,6 +203,11 @@ class DCGAN(object):
 
         h3 = deconv2d(h2, [self.batch_size, downsampled_size * 8, downsampled_size * 8, self.gf_dim*1], name='g_h3')
         h3 = tf.nn.relu(self.g_bn3(h3))
+
+        z_slices = tf.mul(tf.ones([self.batch_size, downsampled_size * 8, downsampled_size * 8, self.z_dim]),
+                          tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
+
+        h3 = tf.concat(3, [h3, z_slices])
 
         h4 = deconv2d(h3, [self.batch_size, downsampled_size * 16, downsampled_size * 16, self.c_dim], name='g_h4')
 
