@@ -50,26 +50,32 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
     out = tf.reshape(image_tensor, [img_size, img_size, 3])
   else:
     out = tf.reshape(image_tensor, [img_size, img_size, 1])
+
   if augment:
-    out = tf.image.random_flip_left_right(out, seed=seed)
-    # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
-    # (randomly distributed left or right), then padding zeros from the left.
-    max_x_offset = 2
-    out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed=seed*2)
-    out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
+    with tf.variable_scope('augment'):
+      out = tf.image.random_flip_left_right(out, seed=seed)
+      # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
+      # (randomly distributed left or right), then padding zeros from the left.
+      max_x_offset = 2
+      out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed=seed*2)
+      out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
+
   if augment_color:
-    out = tf.image.random_hue(out, 0.5, seed=seed*3)
-    out = tf.image.random_saturation(out, 0.0, 1.5, seed=seed*4)
-  if whiten == 'default':
-    # Bring to range [-1, 1]
-    out = tf.cast(out, tf.float32) * (2. / 255) - 1
-  elif whiten == 'sketch':
-    # Brightest value is set to 1, darkest value to -1, then scaled
-    max = tf.cast(tf.reduce_max(out), tf.float32)
-    min = tf.cast(tf.reduce_min(out), tf.float32)
-    out = (tf.cast(out, tf.float32) - min) * 2. / (max - min) - 1
-  else:
-    raise Exception("No whitening specified, aborted")
+    with tf.variable_scope('augment_color'):
+      out = tf.image.random_hue(out, 0.5, seed=seed*3)
+      out = tf.image.random_saturation(out, 0.0, 1.5, seed=seed*4)
+
+  with tf.variable_scope('whiten'):
+    if whiten == 'default':
+      # Bring to range [-1, 1]
+      out = tf.cast(out, tf.float32) * (2. / 255) - 1
+    elif whiten == 'sketch':
+      # Brightest value is set to 1, darkest value to -1, then scaled
+      max = tf.cast(tf.reduce_max(out), tf.float32)
+      min = tf.cast(tf.reduce_min(out), tf.float32)
+      out = (tf.cast(out, tf.float32) - min) * 2. / (max - min) - 1
+    else:
+      raise Exception("No whitening specified, aborted")
   return out
 
 
@@ -130,18 +136,22 @@ def get_chair_pipeline_training_recolor(batch_size, epochs):
 def read_tensor_record(filename_queue, img_size):
   reader = tf.TFRecordReader()
   _, serialized_example = reader.read(filename_queue)
+
   features = tf.parse_single_example(
       serialized_example,
       features={'image': tf.FixedLenFeature([], tf.string),
                 'sketch': tf.FixedLenFeature([], tf.string)})
-  image = tf.decode_raw(features['image'], tf.uint8)
-  image.set_shape([img_size * img_size * 3])
-  image = preprocess(image, img_size,
-                     whiten='default', color=True, augment=True, augment_color=True)
-  sketch = tf.decode_raw(features['sketch'], tf.uint8)
-  sketch.set_shape([img_size * img_size * 1])
-  sketch = preprocess(sketch, img_size,
-                      whiten='sketch', sketch_whiten=True, color=False, augment=True)
+  with tf.variable_scope('image'):
+    image = tf.decode_raw(features['image'], tf.uint8)
+    image.set_shape([img_size * img_size * 3])
+    image = preprocess(image, img_size,
+                       whiten='default', color=True, augment=True, augment_color=True)
+
+  with tf.variable_scope('sketch'):
+    sketch = tf.decode_raw(features['sketch'], tf.uint8)
+    sketch.set_shape([img_size * img_size * 1])
+    sketch = preprocess(sketch, img_size,
+                        whiten='sketch', sketch_whiten=True, color=False, augment=True)
   return sketch, image
 
 
