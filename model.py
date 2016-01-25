@@ -1,6 +1,5 @@
 import os
 import time
-from glob import glob
 import tensorflow as tf
 
 from ops import *
@@ -10,7 +9,7 @@ from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
 class DCGAN(object):
     def __init__(self, sess,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
-                 y_dim=None, z_dim=16, gf_dim=64, df_dim=64,
+                 y_dim=None, z_dim=4, gf_dim=64, df_dim=64,
                  gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
         """
 
@@ -25,6 +24,7 @@ class DCGAN(object):
             dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
             c_dim: (optional) Dimension of image color. [3]
         """
+        self.model_name = "DCGAN.model"
         self.sess = sess
         self.batch_size = batch_size
         self.sample_size = sample_size
@@ -143,17 +143,21 @@ class DCGAN(object):
                 toc = time.time()
 
                 counter += 1
-                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.4f, d_loss: %.8f, g_loss: %.8f"
-                    % (run_string, counter, toc - start_time, toc - tic, errD_fake+errD_real, errG))
+                duration = toc - tic
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f"
+                    % (run_string, counter, toc - start_time, duration, self.batch_size / duration, errD_fake+errD_real, errG))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
 
                 if np.mod(counter, 500) == 2:
                     samples, sample_images, sample_sketches = self.sess.run([self.G, self.images, self.sketches])
-                    save_images(samples, [8, 8], os.path.join(config.summary_dir, 'train_%s.png' % counter))
-                    save_images(sample_images, [8, 8], os.path.join(config.summary_dir, 'train_%s_images.png' % counter))
-                    save_images(sample_sketches, [8, 8], os.path.join(config.summary_dir, 'train_%s_sketches.png' % counter))
+
+                    grid_size = np.ceil(np.sqrt(self.batch_size))
+                    grid = [grid_size, grid_size]
+                    save_images(samples, grid, os.path.join(config.summary_dir, 'train_%s.png' % counter))
+                    save_images(sample_images, grid, os.path.join(config.summary_dir, 'train_%s_images.png' % counter))
+                    save_images(sample_sketches, grid, os.path.join(config.summary_dir, 'train_%s_sketches.png' % counter))
 
                 if np.mod(counter, 2000) == 100:
                     self.save(config.checkpoint_dir, counter)
@@ -186,17 +190,6 @@ class DCGAN(object):
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         # Size after 4 convolutions with stride 2.
         downsampled_size = self.image_size // 2 ** 4
-
-        # s3_flat = tf.reshape(s3, [self.batch_size, self.gf_dim*8*downsampled_size*downsampled_size])
-        # self.abstract_representation = lrelu(self.g_s_bn4(linear(s3_flat, self.gfc_dim, 'g_s4_lin')))
-        # if z:
-        #     self.abstract_representation = tf.concat(1, [self.abstract_representation, z])
-        #
-        # # project `abstract representation` and reshape
-        # h0 = tf.reshape(linear(self.abstract_representation,
-        #                        self.gf_dim*8*downsampled_size*downsampled_size, 'g_h0_lin'),
-        #                 [-1, downsampled_size, downsampled_size, self.gf_dim * 8])
-        # h0 = tf.nn.relu(self.g_bn0(h0))
 
         z_slices = tf.mul(tf.ones([self.batch_size, downsampled_size, downsampled_size, self.z_dim]),
                           tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
@@ -234,23 +227,26 @@ class DCGAN(object):
                 tf.scalar_summary('length_z', length)
 
     def save(self, checkpoint_dir, step):
-        model_name = "DCGAN.model"
-
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
 
         self.saver.save(self.sess,
-                        os.path.join(checkpoint_dir, model_name),
+                        os.path.join(checkpoint_dir, self.model_name),
                         global_step=step)
 
-    def load(self, checkpoint_dir):
+    def load(self, checkpoint_dir, iteration=None):
         print(" [*] Reading checkpoints...")
 
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-        if ckpt and ckpt.model_checkpoint_path:
+        if ckpt and iteration:
+            # Restores dump of given iteration
+            ckpt_name = self.model_name + '-' + iteration
+        elif ckpt and ckpt.model_checkpoint_path:
+            # Restores most recent dump
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
-            print('Reading variables to be restored from ' + ckpt_file)
-            self.saver.restore(self.sess, ckpt_file)
         else:
             raise Exception(" [!] Testing, but %s not found" % checkpoint_dir)
+
+        ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
+        print('Reading variables to be restored from ' + ckpt_file)
+        self.saver.restore(self.sess, ckpt_file)

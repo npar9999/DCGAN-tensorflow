@@ -83,3 +83,7 @@ Session.vim
 
 summary*
 checkpoint*
+
+.idea
+*.txt
+*.tfrecords*
