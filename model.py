@@ -45,16 +45,18 @@ class DCGAN(object):
         self.d_bn1 = batch_norm(is_train, name='d_bn1')
         self.d_bn2 = batch_norm(is_train, name='d_bn2')
         self.d_bn3 = batch_norm(is_train, name='d_bn3')
+        self.d_bn4 = batch_norm(is_train, name='d_bn4')
 
         self.g_bn0 = batch_norm(is_train, name='g_bn0')
         self.g_bn1 = batch_norm(is_train, name='g_bn1')
         self.g_bn2 = batch_norm(is_train, name='g_bn2')
         self.g_bn3 = batch_norm(is_train, name='g_bn3')
+        self.g_bn4 = batch_norm(is_train, name='g_bn4')
 
         self.g_s_bn1 = batch_norm(is_train, name='g_s_bn1')
         self.g_s_bn2 = batch_norm(is_train, name='g_s_bn2')
         self.g_s_bn3 = batch_norm(is_train, name='g_s_bn3')
-        self.g_s_bn4 = batch_norm(is_train, convolutional=False, name='g_s_bn4')
+        self.g_s_bn4 = batch_norm(is_train, name='g_s_bn4')
 
         self.build_model(is_train)
 
@@ -138,8 +140,8 @@ class DCGAN(object):
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                   self.d_loss_real, self.g_loss])
                 # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                self.sess.run(g_optim)
-                # self.sess.run(g_optim)
+                #self.sess.run(g_optim)
+                #self.sess.run(g_optim)
                 toc = time.time()
 
                 counter += 1
@@ -179,36 +181,42 @@ class DCGAN(object):
         h1 = lrelu(self.d_bn1(conv2d(self.d_h0, self.df_dim*2, name='d_h1_conv')))
         h2 = lrelu(self.d_bn2(conv2d(h1, self.df_dim*4, name='d_h2_conv')))
         h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, name='d_h3_conv')))
-        h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
+        h4 = lrelu(self.d_bn4(conv2d(h3, self.df_dim*16, name='d_h4_conv')))
+        h5 = linear(tf.reshape(h4, [self.batch_size, -1]), 1, 'd_h5_lin')
 
-        return tf.nn.sigmoid(h4)
+        return tf.nn.sigmoid(h5)
 
     def generator(self, sketches, z=None, y=None):
         s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
         s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
-        # Size after 4 convolutions with stride 2.
-        downsampled_size = self.image_size // 2 ** 4
+        s4 = lrelu(self.g_s_bn4(conv2d(s3, self.df_dim * 16, name='g_s4_conv')))
+
+        # Size after 5 convolutions with stride 2.
+        downsampled_size = self.image_size // 2 ** 5
 
         z_slices = tf.mul(tf.ones([self.batch_size, downsampled_size, downsampled_size, self.z_dim]),
                           tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
-        self.abstract_representation = tf.concat(3, [s3, z_slices])
+        self.abstract_representation = tf.concat(3, [s4, z_slices])
 
         h1 = deconv2d(self.abstract_representation, [self.batch_size, downsampled_size * 2,
-                                                     downsampled_size * 2, self.gf_dim*4 + self.z_dim],
+                                                     downsampled_size * 2, self.gf_dim*8 + self.z_dim],
                       name='g_h1')
         h1 = tf.nn.relu(self.g_bn1(h1))
 
-        h2 = deconv2d(h1, [self.batch_size, downsampled_size * 4, downsampled_size * 4, self.gf_dim*2], name='g_h2')
+        h2 = deconv2d(h1, [self.batch_size, downsampled_size * 4, downsampled_size * 4, self.gf_dim*4], name='g_h2')
         h2 = tf.nn.relu(self.g_bn2(h2))
 
-        h3 = deconv2d(h2, [self.batch_size, downsampled_size * 8, downsampled_size * 8, self.gf_dim*1], name='g_h3')
+        h3 = deconv2d(h2, [self.batch_size, downsampled_size * 8, downsampled_size * 8, self.gf_dim*2], name='g_h3')
         h3 = tf.nn.relu(self.g_bn3(h3))
 
-        h4 = deconv2d(h3, [self.batch_size, downsampled_size * 16, downsampled_size * 16, self.c_dim], name='g_h4')
+        h4 = deconv2d(h3, [self.batch_size, downsampled_size * 16, downsampled_size * 16, self.gf_dim], name='g_h4')
+        h4 = tf.nn.relu(self.g_bn4(h4))
 
-        return tf.nn.tanh(h4)
+        h5 = deconv2d(h4, [self.batch_size, downsampled_size * 32, downsampled_size * 32, self.c_dim], name='g_h5')
+
+        return tf.nn.tanh(h5)
 
 
     def make_summary_ops(self):
