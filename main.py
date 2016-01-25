@@ -76,6 +76,7 @@ def main(_):
             try:
                 num_versions = 64
                 batch_z_shape = [num_versions, FLAGS.batch_size, dcgan.z_dim]
+                np.random.seed(42)
                 batch_z = np.random.uniform(-1, 1, [num_versions, 1, dcgan.z_dim])
 
                 # Every img in one batch should share the same random vector, use numpy broadcasting here to achieve that.
