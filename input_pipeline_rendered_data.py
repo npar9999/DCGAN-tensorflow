@@ -43,7 +43,7 @@ def get_sketch_files(folder, size_suffix='64x64'):
 
 
 def preprocess(image_tensor, img_size, whiten='default', color=False,
-               augment=True, augment_color=False, sketch_whiten=False, augment_translation=True):
+               augment=True, augment_color=False, sketch_whiten=False, augment_translation=False):
   # Use same seed for flipping for every tensor, so they'll be flipped the same.
   seed = 42
   if color:
