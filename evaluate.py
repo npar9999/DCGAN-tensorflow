@@ -13,6 +13,8 @@ from input_pipeline_rendered_data import make_image_producer
 flags = tf.app.flags
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to restore the checkpoints from")
 flags.DEFINE_string("continue_from", None, 'Continues from the given run, None does restore the most current run [None]')
+flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given iteration (of the given run), '
+                                                     'None does restore the most current iteration [None]')
 flags.DEFINE_integer("random_seed", 42, 'Seed for random vector z [42]')
 flags.DEFINE_integer("num_samples", 64, 'Number of different samples to produce for every sketch [64]')
 flags.DEFINE_string("test_images_folder", 'test_images_folder', 'Folder to pull test images from (all files with .png extension will be processed).')
@@ -43,7 +45,8 @@ def main(_):
 
           # Important: Since not all variables are restored, some need to be initialized here.
           tf.initialize_all_variables().run()
-          dcgan.load(used_checkpoint_dir)
+          dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
+
           coord = tf.train.Coordinator()
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)
           try:

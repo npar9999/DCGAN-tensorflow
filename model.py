@@ -24,6 +24,7 @@ class DCGAN(object):
             dfc_dim: (optional) Dimension of discrim units for fully connected layer. [1024]
             c_dim: (optional) Dimension of image color. [3]
         """
+        self.model_name = "DCGAN.model"
         self.sess = sess
         self.batch_size = batch_size
         self.sample_size = sample_size
@@ -227,23 +228,26 @@ class DCGAN(object):
                 tf.scalar_summary('length_z', length)
 
     def save(self, checkpoint_dir, step):
-        model_name = "DCGAN.model"
-
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
 
         self.saver.save(self.sess,
-                        os.path.join(checkpoint_dir, model_name),
+                        os.path.join(checkpoint_dir, self.model_name),
                         global_step=step)
 
-    def load(self, checkpoint_dir):
+    def load(self, checkpoint_dir, iteration=None):
         print(" [*] Reading checkpoints...")
 
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-        if ckpt and ckpt.model_checkpoint_path:
+        if ckpt and iteration:
+            # Restores dump of given iteration
+            ckpt_name = self.model_name + '-' + iteration
+        elif ckpt and ckpt.model_checkpoint_path:
+            # Restores most recent dump
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
-            print('Reading variables to be restored from ' + ckpt_file)
-            self.saver.restore(self.sess, ckpt_file)
         else:
             raise Exception(" [!] Testing, but %s not found" % checkpoint_dir)
+
+        ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
+        print('Reading variables to be restored from ' + ckpt_file)
+        self.saver.restore(self.sess, ckpt_file)
