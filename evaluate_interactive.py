@@ -14,6 +14,14 @@ flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given i
                                                      'None does restore the most current iteration [None]')
 FLAGS = flags.FLAGS
 
+class MouseButtons:
+    LEFT = 1
+    MIDDLE = 2
+    RIGHT = 3
+    WHEEL_UP = 4
+    WHEEL_DOWN = 5
+
+
 class SketchScreen:
 
     def __init__(self):
@@ -32,10 +40,10 @@ class SketchScreen:
             pygame.draw.circle(srf, color, (x, y), radius)
 
 
-    def brush_at(self, pos, strength, do_roundline=False):
+    def brush_at(self, pos, do_roundline=False):
         # color = screen.get_at(pos)
         # color += pygame.Color(strength, strength, strength)
-        color = pygame.Color(strength, strength, strength)
+        color = pygame.Color(self.strength, self.strength, self.strength)
         pygame.draw.circle(self.screen, color, pos, self.radius)
         if do_roundline:
             self.roundline(self.screen, color, pos, self.last_pos,  self.radius)
@@ -51,13 +59,18 @@ class SketchScreen:
                 if e.type == pygame.QUIT:
                     raise StopIteration
                 if e.type == pygame.MOUSEBUTTONDOWN:
-                    self.brush_at(e.pos, 50)
+                    if e.button == MouseButtons.LEFT:
+                        self.strength = 50
+                    elif e.button == MouseButtons.RIGHT:
+                        self.strength = 0
+
+                    self.brush_at(e.pos)
                     self.draw_on = True
                 if e.type == pygame.MOUSEBUTTONUP:
                     self.draw_on = False
                 if e.type == pygame.MOUSEMOTION:
                     if self.draw_on:
-                        self.brush_at(e.pos, 50, True)
+                        self.brush_at(e.pos, True)
                     self.last_pos = e.pos
                 pygame.display.flip()
 
@@ -120,6 +133,7 @@ def main(_):
                 plt.pause(2)
             except pygame.error:
                 print('Pygame stoped, shutting down.')
+                break
 
 if __name__ == '__main__':
     tf.app.run()
