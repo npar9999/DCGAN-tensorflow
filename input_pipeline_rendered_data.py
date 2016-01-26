@@ -43,7 +43,7 @@ def get_sketch_files(folder, size_suffix='64x64'):
 
 
 def preprocess(image_tensor, img_size, whiten='default', color=False,
-               augment=True, augment_color=False, sketch_whiten=False, augment_translation=False):
+               augment=True, augment_color=False, augment_translation=False):
   # Use same seed for flipping for every tensor, so they'll be flipped the same.
   seed = 42
   if color:
@@ -142,7 +142,7 @@ def read_tensor_record(filename_queue, img_size):
   sketch = tf.decode_raw(features['sketch'], tf.uint8)
   sketch.set_shape([img_size * img_size * 1])
   sketch = preprocess(sketch, img_size,
-                      whiten='sketch', sketch_whiten=True, color=False, augment=True)
+                      whiten='sketch', color=False, augment=True)
   return sketch, image
 
 
