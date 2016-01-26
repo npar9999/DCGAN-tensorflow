@@ -13,20 +13,28 @@ get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 def get_image(image_path, image_size):
     return transform(imread(image_path), image_size)
 
-def save_images(images, grid_size, image_path):
-    return imsave(inverse_transform(images), grid_size, image_path)
+def save_images(images, grid_size, image_path, invert=True, channels=3):
+    if invert:
+        images = inverse_transform(images)
+    return imsave(images, grid_size, image_path, channels)
 
 def imread(path):
     return scipy.misc.imread(path).astype(np.float)
 
-def imsave(images, grid_size, path):
+def imsave(images, grid_size, path, channels):
     h, w = images.shape[1], images.shape[2]
-    img = np.zeros((h * grid_size[0], w * grid_size[1], 3))
+    img = np.zeros((h * grid_size[0], w * grid_size[1], channels))
 
     for idx, image in enumerate(images):
         i = idx % grid_size[1]
         j = idx // grid_size[1]
-        img[j*h:j*h+h, i*w:i*w+w, :] = image
+        if channels == 1:
+            img[j*h:j*h+h, i*w:i*w+w, 0] = image
+        else:
+            img[j*h:j*h+h, i*w:i*w+w, :] = image
+    # Flatten third dimension if only grayscale image (necessary for scipy image save method).
+    if channels == 1:
+        img = img.reshape(img.shape[0:2])
     return scipy.misc.imsave(path, img)
 
 def center_crop(x, crop_h, crop_w=None, resize_w=64):

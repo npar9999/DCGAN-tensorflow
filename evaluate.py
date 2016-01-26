@@ -32,6 +32,11 @@ def main(_):
     used_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, run_folder)
     print('Restoring from ' + FLAGS.checkpoint_dir)
 
+    output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    print('Writing output to ' + output_folder)
+
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
           test_files = sorted(glob.glob('test_sketches/*.png'))
@@ -42,6 +47,11 @@ def main(_):
               test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
               dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
+
+              # Define tensor for visualizing abstract representation.
+              activation_channels = int(dcgan.abstract_representation.get_shape()[3])
+              V = tf.transpose(dcgan.abstract_representation, (0, 3, 1, 2))
+
 
           # Important: Since not all variables are restored, some need to be initialized here.
           tf.initialize_all_variables().run()
@@ -59,25 +69,39 @@ def main(_):
               batch_z_all[:, :, :] = batch_z
 
               batch_sketches = test_sketches.eval()
-              one_chair_different_randoms = np.zeros([FLAGS.batch_size, FLAGS.num_samples, dcgan.image_size, dcgan.image_size, 3])
+              grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
+              save_images(batch_sketches, [grid_size, grid_size], os.path.join(output_folder, 'sketches.png'))
+
+              one_chair_different_randoms = np.zeros([FLAGS.batch_size, FLAGS.num_samples,
+                                                      dcgan.image_size, dcgan.image_size, 3])
+              activations = None
+
               for i in xrange(FLAGS.num_samples):
                   batch_z = batch_z_all[i, :, :]
-                  img = sess.run(dcgan.G,
-                                 feed_dict={dcgan.z: batch_z,
-                                            dcgan.sketches: batch_sketches})
-                  filename_out = 'test_sketches_to_rendered_out/{}_img.png'.format(str(i).zfill(3))
-                  grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
+                  img, abstract_rep = sess.run([dcgan.G, dcgan.abstract_representation],
+                                               feed_dict={dcgan.z: batch_z,
+                                                          dcgan.sketches: batch_sketches})
+                  filename_out = os.path.join(output_folder, '{}_img.png'.format(str(i).zfill(3)))
                   save_images(img, [grid_size, grid_size], filename_out)
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
-                  filename_out = 'test_sketches_to_rendered_out/{}_sketch.png'.format(str(i).zfill(3))
-                  save_images(batch_sketches, [grid_size, grid_size], filename_out)
+                  if i == 0:
+                      activations = sess.run(V, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+
+
 
               for j, file_name in enumerate(test_files):
                   grid_size = np.ceil(np.sqrt(FLAGS.num_samples))
                   name_without_ext = os.path.splitext(os.path.basename(file_name))[0]
-                  save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size],
-                              'test_sketches_to_rendered_out/{}_different_randoms.png'.format(name_without_ext))
+                  filename_out = os.path.join(output_folder, '{}_different_randoms.png'.format(name_without_ext))
+                  save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size], filename_out)
+
+                  # Visualize abstract representation.
+                  grid_size = np.ceil(np.sqrt(activation_channels))
+                  filename_out = os.path.join(output_folder, '{}_abstract_representation.png'.format(name_without_ext))
+                  # TODO: Scale abstract representation to some static range.
+                  save_images(activations[j, :, :, :], [grid_size, grid_size], filename_out,
+                              invert=False, channels=1)
 
           except tf.errors.OutOfRangeError as e:
               print('Done')
