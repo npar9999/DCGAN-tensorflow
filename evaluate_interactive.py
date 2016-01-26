@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 from model import DCGAN
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 import os, threading, time
 from input_pipeline_rendered_data import preprocess
 
@@ -81,6 +82,21 @@ class SketchScreen:
         pygame.quit()
 
 
+class OutputScreen:
+    def __init__(self, size):
+        data = np.zeros([size, size, 3])
+
+        fig, ax = plt.subplots()
+        self.imshow_window = plt.imshow(data)
+
+        ax0 = plt.axes([0.25, 0.01, 0.65, 0.03])
+        self.slider_random0 = Slider(ax0, 'Random 0', -1, 1, valinit=0)
+        # TODO: Add more sliders.
+        fig.show()
+
+    def update_content(self, img):
+        self.imshow_window.set_data(np.transpose(img, [1, 0, 2]))
+        plt.draw()
 
 
 def main(_):
@@ -102,11 +118,8 @@ def main(_):
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
     upscaled_size = 256
 
-    data = np.zeros([upscaled_size, upscaled_size, 3])
 
-    f = plt.figure()
-    imshow_window = plt.imshow(data)
-    f.show()
+    output_screen = OutputScreen(upscaled_size)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         with tf.device('/cpu:0'):
@@ -124,11 +137,12 @@ def main(_):
         while draw_thread.is_alive:
             try:
                 s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
-                img = sess.run(upscaled_G, feed_dict={dcgan.z: np.random.uniform(-1, 1, [1, dcgan.z_dim]),
-                                                   dcgan.sketches: s})
+                #z = np.random.uniform(-1, 1, [1, dcgan.z_dim])
+                z = np.ones([1, dcgan.z_dim]) * output_screen.slider_random0.val
+                img = sess.run(upscaled_G, feed_dict={dcgan.z: z,
+                                                      dcgan.sketches: s})
                 unnormed_img = (np.reshape(img, [upscaled_size, upscaled_size, 3]) + 1) / 2
-                imshow_window.set_data(np.transpose(unnormed_img, [1, 0, 2]))
-                plt.draw()
+                output_screen.update_content(unnormed_img)
                 print('Updated image')
                 plt.pause(2)
             except pygame.error:
