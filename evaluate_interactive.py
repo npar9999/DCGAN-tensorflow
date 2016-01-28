@@ -4,6 +4,7 @@ import tensorflow as tf
 from model import DCGAN
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess
 
@@ -86,16 +87,23 @@ class OutputScreen:
     def __init__(self, size):
         data = np.zeros([size, size, 3])
 
-        fig, ax = plt.subplots()
-        self.imshow_window = plt.imshow(data)
+        fig, (ax_input, ax_output) = plt.subplots(2, 1)
+        my_extent = [-100, 100, -100, 100]
+        self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
+        self.downsampled_input = ax_input.imshow(data, interpolation='nearest', aspect='equal',
+                                                 cmap=cm.Greys_r)
 
-        ax0 = plt.axes([0.25, 0.01, 0.65, 0.03])
-        self.slider_random0 = Slider(ax0, 'Random 0', -1, 1, valinit=0)
-        # TODO: Add more sliders.
+        self.sliders = []
+        for i in xrange(4):
+            ax = fig.add_axes([0.2, 0.03 * i, 0.65, 0.03])
+            s = Slider(ax, 'Random ' + str(i), -1, 1, valinit=0)
+            self.sliders.append(s)
+
         fig.show()
 
-    def update_content(self, img):
-        self.imshow_window.set_data(np.transpose(img, [1, 0, 2]))
+    def update_content(self, input, output):
+        self.downsampled_input.set_data(np.transpose(input, [1, 0]))
+        self.imshow_window.set_data(np.transpose(output, [1, 0, 2]))
         plt.draw()
 
 
@@ -129,22 +137,21 @@ def main(_):
             small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
             small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
 
-            upscaled_G = tf.image.resize_nearest_neighbor(dcgan.G, [upscaled_size, upscaled_size])
-
         tf.initialize_all_variables().run()
         dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
 
         while draw_thread.is_alive:
             try:
                 s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
-                #z = np.random.uniform(-1, 1, [1, dcgan.z_dim])
-                z = np.ones([1, dcgan.z_dim]) * output_screen.slider_random0.val
-                img = sess.run(upscaled_G, feed_dict={dcgan.z: z,
-                                                      dcgan.sketches: s})
-                unnormed_img = (np.reshape(img, [upscaled_size, upscaled_size, 3]) + 1) / 2
-                output_screen.update_content(unnormed_img)
+                unnormed_small_sketch = (np.reshape(s, [64, 64]) + 1) / 2
+
+                z = np.reshape(np.asarray([slider.val for slider in output_screen.sliders], dtype=np.float32), [1, 4])
+                img = sess.run(dcgan.G, feed_dict={dcgan.z: z, dcgan.sketches: s})
+
+                unnormed_img = (np.reshape(img, [64, 64, 3]) + 1) / 2
+                output_screen.update_content(unnormed_small_sketch, unnormed_img)
                 print('Updated image')
-                plt.pause(2)
+                plt.pause(0.5)
             except pygame.error:
                 print('Pygame stoped, shutting down.')
                 break
