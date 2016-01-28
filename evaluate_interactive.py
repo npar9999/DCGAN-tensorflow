@@ -31,6 +31,9 @@ class SketchScreen:
         self.last_pos = (0, 0)
         self.radius = 5
         self.screen = pygame.display.set_mode((512,512))
+        self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
+                                                     (512, 512))
+        self.screen.blit(self.init_img, (0,0))
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -51,7 +54,7 @@ class SketchScreen:
             self.roundline(self.screen, color, pos, self.last_pos,  self.radius)
 
     def get_content_as_np_array(self):
-        return pygame.surfarray.array3d(self.screen)[:, : ,0] / (32.0 * 8)
+        return pygame.surfarray.array3d(self.screen)[:,:,0] / (32.0 * 8)
 
 
     def enter_loop(self):
@@ -88,10 +91,9 @@ class OutputScreen:
         data = np.zeros([size, size, 3])
 
         fig, (ax_input, ax_output) = plt.subplots(2, 1)
-        my_extent = [-100, 100, -100, 100]
         self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
-        self.downsampled_input = ax_input.imshow(data, interpolation='nearest', aspect='equal',
-                                                 cmap=cm.Greys_r)
+        self.downsampled_input = ax_input.imshow(np.zeros([size,size]),
+                                                 interpolation='nearest', aspect='equal', cmap=cm.Greys_r)
 
         self.sliders = []
         for i in xrange(4):
@@ -102,7 +104,7 @@ class OutputScreen:
         fig.show()
 
     def update_content(self, input, output):
-        self.downsampled_input.set_data(np.transpose(input, [1, 0]))
+        self.downsampled_input.set_data(np.repeat(np.transpose(input, [1, 0, 2]), 3, 2))
         self.imshow_window.set_data(np.transpose(output, [1, 0, 2]))
         plt.draw()
 
@@ -124,10 +126,8 @@ def main(_):
     draw_thread.start()
 
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
-    upscaled_size = 256
 
-
-    output_screen = OutputScreen(upscaled_size)
+    output_screen = OutputScreen(64)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         with tf.device('/cpu:0'):
@@ -143,8 +143,7 @@ def main(_):
         while draw_thread.is_alive:
             try:
                 s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
-                unnormed_small_sketch = (np.reshape(s, [64, 64]) + 1) / 2
-
+                unnormed_small_sketch = (np.reshape(s, [64, 64, 1]) + 1) / 2
                 z = np.reshape(np.asarray([slider.val for slider in output_screen.sliders], dtype=np.float32), [1, 4])
                 img = sess.run(dcgan.G, feed_dict={dcgan.z: z, dcgan.sketches: s})
 
