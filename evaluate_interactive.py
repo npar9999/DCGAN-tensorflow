@@ -1,4 +1,5 @@
 import pygame
+from pygame.locals import *
 import numpy as np
 import tensorflow as tf
 from model import DCGAN
@@ -33,7 +34,6 @@ class SketchScreen:
         self.screen = pygame.display.set_mode((512,512))
         self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
                                                      (512, 512))
-        # self.screen.blit(self.init_img, (0,0))
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -63,7 +63,15 @@ class SketchScreen:
                 e = pygame.event.wait()
                 if e.type == pygame.QUIT:
                     raise StopIteration
-                if e.type == pygame.MOUSEBUTTONDOWN:
+                elif e.type == pygame.KEYDOWN:
+                    pressed = pygame.key.get_pressed()
+                    if pressed[K_l]:
+                        # l: Loads initial image
+                        self.screen.blit(self.init_img, (0,0))
+                    elif pressed[K_c]:
+                        # c: Clears screen
+                        self.screen.fill((0,0,0))
+                elif e.type == pygame.MOUSEBUTTONDOWN:
                     if e.button == MouseButtons.LEFT:
                         self.strength = 50
                     elif e.button == MouseButtons.RIGHT:
@@ -71,9 +79,9 @@ class SketchScreen:
 
                     self.brush_at(e.pos)
                     self.draw_on = True
-                if e.type == pygame.MOUSEBUTTONUP:
+                elif e.type == pygame.MOUSEBUTTONUP:
                     self.draw_on = False
-                if e.type == pygame.MOUSEMOTION:
+                elif e.type == pygame.MOUSEMOTION:
                     if self.draw_on:
                         self.brush_at(e.pos, True)
                     self.last_pos = e.pos
@@ -128,20 +136,19 @@ def main(_):
     output_screen = OutputScreen(64)
 
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
-        with tf.device('/cpu:0'):
-            dcgan = DCGAN(sess, batch_size=1, is_train=False)
-            full_sketch = tf.placeholder(tf.float32, [512, 512])
-            small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
-            small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
-            small_sketch = tf.transpose(small_sketch, [1, 0, 2])
-            small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
+        dcgan = DCGAN(sess, batch_size=1, is_train=False)
+        full_sketch = tf.placeholder(tf.float32, [512, 512])
+        small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
+        small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
+        small_sketch = tf.transpose(small_sketch, [1, 0, 2])
+        small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
 
-            # Directly feed sketch
-            # test_sketch = make_image_producer(['test_sketches/part_of_recolor_experiment.png'], 10, 'rendered_producer',
-            #                                   64,
-            #                                   shuffle=False, filename_seed=1, whiten='sketch', color=False,
-            #                                   augment=False)
-            # test_sketch = tf.train.batch([test_sketch], batch_size=1)
+        # Directly feed sketch
+        # test_sketch = make_image_producer(['test_sketches/part_of_recolor_experiment.png'], 10, 'rendered_producer',
+        #                                   64,
+        #                                   shuffle=False, filename_seed=1, whiten='sketch', color=False,
+        #                                   augment=False)
+        # test_sketch = tf.train.batch([test_sketch], batch_size=1)
 
         tf.initialize_all_variables().run()
         dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
