@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 import matplotlib.cm as cm
 import os, threading, time
-from input_pipeline_rendered_data import preprocess
+from input_pipeline_rendered_data import preprocess, make_image_producer
 
 flags = tf.app.flags
 
@@ -33,7 +33,7 @@ class SketchScreen:
         self.screen = pygame.display.set_mode((512,512))
         self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
                                                      (512, 512))
-        self.screen.blit(self.init_img, (0,0))
+        # self.screen.blit(self.init_img, (0,0))
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -104,8 +104,8 @@ class OutputScreen:
         fig.show()
 
     def update_content(self, input, output):
-        self.downsampled_input.set_data(np.repeat(np.transpose(input, [1, 0, 2]), 3, 2))
-        self.imshow_window.set_data(np.transpose(output, [1, 0, 2]))
+        self.downsampled_input.set_data(np.repeat(input, 3, 2))
+        self.imshow_window.set_data(output)
         plt.draw()
 
 
@@ -125,20 +125,31 @@ def main(_):
     draw_thread = threading.Thread(target=sc.enter_loop)
     draw_thread.start()
 
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
-
     output_screen = OutputScreen(64)
 
-    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+    with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         with tf.device('/cpu:0'):
             dcgan = DCGAN(sess, batch_size=1, is_train=False)
             full_sketch = tf.placeholder(tf.float32, [512, 512])
             small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
             small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
+            small_sketch = tf.transpose(small_sketch, [1, 0, 2])
             small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
+
+            # Directly feed sketch
+            # test_sketch = make_image_producer(['test_sketches/part_of_recolor_experiment.png'], 10, 'rendered_producer',
+            #                                   64,
+            #                                   shuffle=False, filename_seed=1, whiten='sketch', color=False,
+            #                                   augment=False)
+            # test_sketch = tf.train.batch([test_sketch], batch_size=1)
 
         tf.initialize_all_variables().run()
         dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
+        print('Successfully reconstructed network with variables.')
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        # s = sess.run(test_sketch)
+        # print("Got sketch")
 
         while draw_thread.is_alive:
             try:
@@ -154,6 +165,10 @@ def main(_):
             except pygame.error:
                 print('Pygame stoped, shutting down.')
                 break
+
+        coord.request_stop()
+        coord.join(threads)
+
 
 if __name__ == '__main__':
     tf.app.run()
