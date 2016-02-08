@@ -43,7 +43,7 @@ def get_sketch_files(folder, size_suffix='64x64'):
 
 
 def preprocess(image_tensor, img_size, whiten='default', color=False,
-               augment=True, augment_color=False, sketch_whiten=False):
+               augment=True, augment_color=False, augment_translation=False):
   # Use same seed for flipping for every tensor, so they'll be flipped the same.
   seed = 42
   if color:
@@ -54,12 +54,13 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
   if augment:
     with tf.variable_scope('augment'):
       out = tf.image.random_flip_left_right(out, seed=seed)
+  if augment_translation:
+    with tf.variable_scope('augment_translation'):
       # Add a random translation of up to 'max_x_offset' pixels by first cropping width by 'max_x_offset' pixels
       # (randomly distributed left or right), then padding zeros from the left.
       max_x_offset = 2
       out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed=seed*2)
       out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
-
   if augment_color:
     with tf.variable_scope('augment_color'):
       out = tf.image.random_hue(out, 0.5, seed=seed*3)
@@ -151,7 +152,7 @@ def read_tensor_record(filename_queue, img_size):
     sketch = tf.decode_raw(features['sketch'], tf.uint8)
     sketch.set_shape([img_size * img_size * 1])
     sketch = preprocess(sketch, img_size,
-                        whiten='sketch', sketch_whiten=True, color=False, augment=True)
+                        whiten='sketch', color=False, augment=True)
   return sketch, image
 
 
