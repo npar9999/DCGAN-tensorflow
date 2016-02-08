@@ -24,6 +24,32 @@ class MouseButtons:
     WHEEL_UP = 4
     WHEEL_DOWN = 5
 
+class UndoStack:
+    def __init__(self, screen, size=20):
+        self.screen = screen
+        self.undo_size = size
+        self.undo_stack = [None] * self.undo_size
+        self.undo_idx = -1
+
+    def push(self):
+        self.undo_idx += 1
+        self.undo_stack[self.undo_idx % self.undo_size] = pygame.image.tostring(self.screen, "RGBA")
+
+    def restore_current_idx(self):
+        s = pygame.image.fromstring(self.undo_stack[self.undo_idx % self.undo_size], self.screen.get_size(), 'RGBA')
+        self.screen.blit(s, (0,0))
+
+    def pop_forward(self):
+        self.undo_idx += 1
+        self.restore_current_idx()
+
+    def pop_backward(self):
+        if self.undo_idx == 0:
+            print('Reached end of stack')
+        else:
+            self.undo_idx -= 1
+            self.restore_current_idx()
+
 
 class SketchScreen:
 
@@ -35,6 +61,8 @@ class SketchScreen:
         self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
                                                      (512, 512))
         self.strength = 125
+        self.undo = UndoStack(self.screen)
+        self.undo.push()
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -69,9 +97,15 @@ class SketchScreen:
                     if pressed[K_l]:
                         # l: Loads initial image
                         self.screen.blit(self.init_img, (0,0))
+                        self.undo.push()
                     elif pressed[K_c]:
                         # c: Clears screen
                         self.screen.fill((0,0,0))
+                        self.undo.push()
+                    elif pressed[K_z]:
+                        self.undo.pop_backward()
+                    elif pressed[K_x]:
+                        self.undo.pop_forward()
                     elif pressed[K_KP_PLUS]:
                         self.radius = min(self.radius + 3, 15)
                     elif pressed[K_KP_MINUS]:
@@ -93,6 +127,7 @@ class SketchScreen:
                     if self.previous_strength is not None:
                         self.strength = self.previous_strength
                     self.draw_on = False
+                    self.undo.push()
                 elif e.type == pygame.MOUSEMOTION:
                     if self.draw_on:
                         self.brush_at(e.pos, True)
