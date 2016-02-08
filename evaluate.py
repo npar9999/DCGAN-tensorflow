@@ -37,8 +37,7 @@ def main(_):
         os.makedirs(output_folder)
     print('Writing output to ' + output_folder)
 
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.01)
-    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
+    with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
           test_files = sorted(glob.glob('test_sketches/*.png'))
           FLAGS.batch_size = len(test_files)
           with tf.device('/cpu:0'):
