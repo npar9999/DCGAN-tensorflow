@@ -34,6 +34,7 @@ class SketchScreen:
         self.screen = pygame.display.set_mode((512,512))
         self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
                                                      (512, 512))
+        self.strength = 125
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -71,15 +72,26 @@ class SketchScreen:
                     elif pressed[K_c]:
                         # c: Clears screen
                         self.screen.fill((0,0,0))
+                    elif pressed[K_KP_PLUS]:
+                        self.radius = min(self.radius + 3, 15)
+                    elif pressed[K_KP_MINUS]:
+                        self.radius = max(self.radius - 3, 2)
+                    for x in range(K_KP1, K_KP9 + 1):
+                        if pressed[x]:
+                            self.strength = (x - K_KP0) * 255 / 9
+
                 elif e.type == pygame.MOUSEBUTTONDOWN:
-                    if e.button == MouseButtons.LEFT:
-                        self.strength = 50
-                    elif e.button == MouseButtons.RIGHT:
+                    if e.button == MouseButtons.RIGHT:
+                        self.previous_strength = self.strength
                         self.strength = 0
+                    else:
+                        self.previous_strength = None
 
                     self.brush_at(e.pos)
                     self.draw_on = True
                 elif e.type == pygame.MOUSEBUTTONUP:
+                    if self.previous_strength is not None:
+                        self.strength = self.previous_strength
                     self.draw_on = False
                 elif e.type == pygame.MOUSEMOTION:
                     if self.draw_on:
