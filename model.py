@@ -110,7 +110,8 @@ class DCGAN(object):
 
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
                           .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+        g_lr = tf.placeholder(tf.float32, shape=[])
+        g_optim = tf.train.AdamOptimizer(learning_rate=g_lr, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
 
         # See that moving average is also updated with g_optim.
@@ -136,18 +137,18 @@ class DCGAN(object):
                 counter = config.continue_from_iteration
             else:
                 counter = 0
-
+            lr = config.learning_rate
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
 
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
-                                                                  self.d_loss_real, self.g_loss])
+                                                                  self.d_loss_real, self.g_loss], feed_dict={g_lr: lr})
                 # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
                 errD_fake_threshold = 1e-5
                 additional_G_runs = 0
                 while errD_fake < errD_fake_threshold:
-                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
+                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim], feed_dict={g_lr: lr})
                     additional_G_runs += 1
 
                 toc = time.time()
@@ -172,6 +173,8 @@ class DCGAN(object):
 
                 if np.mod(counter, 2000) == 100:
                     self.save(config.checkpoint_dir, counter)
+                if np.mod(counter, 20000) == 0:
+                    lr /= 2
 
 
         except tf.errors.OutOfRangeError:
