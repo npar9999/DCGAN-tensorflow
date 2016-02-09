@@ -121,7 +121,7 @@ class DCGAN(object):
         if config.continue_from:
             checkpoint_dir = os.path.join(os.path.dirname(config.checkpoint_dir), config.continue_from)
             print('Loading variables from ' + checkpoint_dir)
-            self.load(checkpoint_dir)
+            self.load(checkpoint_dir, config.continue_from_iteration)
 
         start_time = time.time()
 
@@ -132,7 +132,11 @@ class DCGAN(object):
 
         try:
             # Training
-            counter = 0
+            if config.continue_from_iteration:
+                counter = config.continue_from_iteration
+            else:
+                counter = 0
+
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
@@ -247,7 +251,7 @@ class DCGAN(object):
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and iteration:
             # Restores dump of given iteration
-            ckpt_name = self.model_name + '-' + iteration
+            ckpt_name = self.model_name + '-' + str(iteration)
         elif ckpt and ckpt.model_checkpoint_path:
             # Restores most recent dump
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
