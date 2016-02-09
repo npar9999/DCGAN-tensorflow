@@ -180,15 +180,16 @@ def main(_):
     draw_thread = threading.Thread(target=sc.enter_loop)
     draw_thread.start()
 
-    output_screen = OutputScreen(64)
+    output_size = 128
+    output_screen = OutputScreen(output_size)
 
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         dcgan = DCGAN(sess, batch_size=1, is_train=False)
         full_sketch = tf.placeholder(tf.float32, [512, 512])
-        small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
-        small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
+        small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [output_size, output_size])
+        small_sketch = preprocess(small_sketch, output_size, whiten='sketch', color=False, augment=False)
         small_sketch = tf.transpose(small_sketch, [1, 0, 2])
-        small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
+        small_sketch = tf.reshape(small_sketch, [1, output_size, output_size, 1])
 
         # Directly feed sketch
         # test_sketch = make_image_producer(['test_sketches/part_of_recolor_experiment.png'], 10, 'rendered_producer',
@@ -208,11 +209,11 @@ def main(_):
         while draw_thread.is_alive:
             try:
                 s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
-                unnormed_small_sketch = (np.reshape(s, [64, 64, 1]) + 1) / 2
+                unnormed_small_sketch = (np.reshape(s, [output_size, output_size, 1]) + 1) / 2
                 z = np.reshape(np.asarray([slider.val for slider in output_screen.sliders], dtype=np.float32), [1, 4])
                 img = sess.run(dcgan.G, feed_dict={dcgan.z: z, dcgan.sketches: s})
 
-                unnormed_img = (np.reshape(img, [64, 64, 3]) + 1) / 2
+                unnormed_img = (np.reshape(img, [output_size, output_size, 3]) + 1) / 2
                 output_screen.update_content(unnormed_small_sketch, unnormed_img)
                 print('Updated image')
                 plt.pause(0.5)
