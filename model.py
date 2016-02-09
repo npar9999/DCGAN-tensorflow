@@ -141,7 +141,7 @@ class DCGAN(object):
                                                                   self.d_loss_real, self.g_loss])
                 errD_fake_threshold = 1e-5
                 additional_G_runs = 0
-                while errD_fake < errD_fake_threshold and additional_G_runs < 5:
+                while errD_fake < errD_fake_threshold and additional_G_runs < 2:
                     [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
                     additional_G_runs += 1
 
