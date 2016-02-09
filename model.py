@@ -139,15 +139,18 @@ class DCGAN(object):
 
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                   self.d_loss_real, self.g_loss])
-                # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                #self.sess.run(g_optim)
-                #self.sess.run(g_optim)
-                toc = time.time()
+                errD_fake_threshold = 1e-5
+                additional_G_runs = 0
+                while errD_fake < errD_fake_threshold:
+                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
+                    additional_G_runs += 1
 
+                toc = time.time()
                 counter += 1
                 duration = toc - tic
-                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f"
-                    % (run_string, counter, toc - start_time, duration, self.batch_size / duration, errD_fake+errD_real, errG))
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f, G+: %2d"
+                    % (run_string, counter, toc - start_time, duration, self.batch_size / duration,
+                       errD_fake+errD_real, errG, additional_G_runs))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
