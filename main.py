@@ -9,7 +9,7 @@ from utils import pp
 
 flags = tf.app.flags
 flags.DEFINE_integer("epoch", 25, "Epoch to train [25]")
-flags.DEFINE_float("learning_rate", 0.0002, "Learning rate of for adam [0.0002]")
+flags.DEFINE_float("learning_rate", 0.00002, "Learning rate of for adam [0.0002]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to save the checkpoints [checkpoint]")
@@ -31,7 +31,7 @@ def main(_):
 
     FLAGS.summary_dir = os.path.join(FLAGS.summary_dir, run_folder)
     FLAGS.checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, run_folder)
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    with tf.Session(config=tf.ConfigProto()) as sess:
         dcgan = DCGAN(sess, batch_size=FLAGS.batch_size)
         if not os.path.exists(FLAGS.checkpoint_dir):
             os.makedirs(FLAGS.checkpoint_dir)
