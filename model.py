@@ -213,9 +213,9 @@ class DCGAN(object):
 
     def generator(self, sketches, z=None, y=None):
         self.s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
-        s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
-        s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
-        s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
+        self.s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
+        self.s2 = lrelu(self.g_s_bn2(conv2d(self.s1, self.df_dim * 4, name='g_s2_conv')))
+        s3 = lrelu(self.g_s_bn3(conv2d(self.s2, self.df_dim * 8, name='g_s3_conv')))
         # Size after 4 convolutions with stride 2.
         downsampled_size = self.image_size // 2 ** 4
 

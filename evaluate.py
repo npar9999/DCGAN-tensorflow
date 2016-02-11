@@ -55,15 +55,13 @@ def main(_):
               dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
 
               # Define tensor for visualizing abstract representation.
-              V_abstract, chan_abstract = activations_to_images(dcgan.abstract_representation)
-              V_first_conv, chan_first_conv = activations_to_images(dcgan.s0)
-
+              Vs = [activations_to_images(x) for x in [dcgan.s0, dcgan.s1, dcgan.s2, dcgan.abstract_representation]]
 
           # Important: Since not all variables are restored, some need to be initialized here.
           tf.initialize_all_variables().run()
           loaded_iteration_string = dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
 
-          output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', loaded_iteration_string[0])
+          output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', loaded_iteration_string)
           if not os.path.exists(output_folder):
               os.makedirs(output_folder)
           print('Writing output to ' + output_folder)
@@ -96,8 +94,7 @@ def main(_):
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
                   if i == 0:
-                      abstract_activations = sess.run(V_abstract, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
-                      first_conv_activations = sess.run(V_first_conv, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+                      activations = sess.run([x for x, _ in Vs], feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
 
 
               for j, file_name in enumerate(test_files):
@@ -107,16 +104,11 @@ def main(_):
                   save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size], filename_out)
 
                   # Visualize abstract representation.
-                  grid_size = np.ceil(np.sqrt(chan_abstract))
-                  filename_out = os.path.join(output_folder, '{}_abstract_representation.png'.format(name_without_ext))
-                  # TODO: Scale abstract representation to some static range.
-                  save_images(abstract_activations[j, :, :, :], [grid_size, grid_size], filename_out,
-                              invert=False, channels=1)
-
-                  grid_size = np.ceil(np.sqrt(chan_first_conv))
-                  filename_out = os.path.join(output_folder, '{}_conv_1.png'.format(name_without_ext))
-                  save_images(first_conv_activations[j, :, :, :], [grid_size, grid_size], filename_out,
-                              invert=False, channels=1)
+                  for idx, (_, channel_count) in enumerate(Vs):
+                      grid_size = np.ceil(np.sqrt(channel_count))
+                      filename_out = os.path.join(output_folder, '{}_layer_{}.png'.format(name_without_ext, idx))
+                      save_images(activations[idx][j, :, :, :], [grid_size, grid_size], filename_out,
+                                  invert=False, channels=1)
 
           except tf.errors.OutOfRangeError as e:
               print('Done')
