@@ -20,6 +20,17 @@ flags.DEFINE_integer("num_samples", 64, 'Number of different samples to produce 
 flags.DEFINE_string("test_images_folder", 'test_images_folder', 'Folder to pull test images from (all files with .png extension will be processed).')
 FLAGS = flags.FLAGS
 
+
+def activations_to_images(V):
+    activation_channels = int(V.get_shape()[3])
+    min = tf.reduce_min(V)
+    max = tf.reduce_max(V)
+    V = (V - min) / (max - min)
+    V = tf.pad(V, [[0, 0], [1, 1], [1, 1], [0, 0]])
+    V = tf.transpose(V, (0, 3, 1, 2))
+    return V, activation_channels
+
+
 def main(_):
     pp.pprint(flags.FLAGS.__flags)
 
@@ -32,7 +43,7 @@ def main(_):
     used_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, run_folder)
     print('Restoring from ' + FLAGS.checkpoint_dir)
 
-    output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images')
+    output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', )
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     print('Writing output to ' + output_folder)
@@ -48,8 +59,8 @@ def main(_):
               dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
 
               # Define tensor for visualizing abstract representation.
-              activation_channels = int(dcgan.abstract_representation.get_shape()[3])
-              V = tf.transpose(dcgan.abstract_representation, (0, 3, 1, 2))
+              V_abstract, chan_abstract = activations_to_images(dcgan.abstract_representation)
+              V_first_conv, chan_first_conv = activations_to_images(dcgan.s0)
 
 
           # Important: Since not all variables are restored, some need to be initialized here.
@@ -73,7 +84,6 @@ def main(_):
 
               one_chair_different_randoms = np.zeros([FLAGS.batch_size, FLAGS.num_samples,
                                                       dcgan.image_size, dcgan.image_size, 3])
-              activations = None
 
               for i in xrange(FLAGS.num_samples):
                   batch_z = batch_z_all[i, :, :]
@@ -85,8 +95,8 @@ def main(_):
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
                   if i == 0:
-                      activations = sess.run(V, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
-
+                      abstract_activations = sess.run(V_abstract, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+                      first_conv_activations = sess.run(V_first_conv, feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
 
 
               for j, file_name in enumerate(test_files):
@@ -96,10 +106,15 @@ def main(_):
                   save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size], filename_out)
 
                   # Visualize abstract representation.
-                  grid_size = np.ceil(np.sqrt(activation_channels))
+                  grid_size = np.ceil(np.sqrt(chan_abstract))
                   filename_out = os.path.join(output_folder, '{}_abstract_representation.png'.format(name_without_ext))
                   # TODO: Scale abstract representation to some static range.
-                  save_images(activations[j, :, :, :], [grid_size, grid_size], filename_out,
+                  save_images(abstract_activations[j, :, :, :], [grid_size, grid_size], filename_out,
+                              invert=False, channels=1)
+
+                  grid_size = np.ceil(np.sqrt(chan_first_conv))
+                  filename_out = os.path.join(output_folder, '{}_conv_1.png'.format(name_without_ext))
+                  save_images(first_conv_activations[j, :, :, :], [grid_size, grid_size], filename_out,
                               invert=False, channels=1)
 
           except tf.errors.OutOfRangeError as e:
