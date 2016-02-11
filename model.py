@@ -9,7 +9,7 @@ from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
 class DCGAN(object):
     def __init__(self, sess,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
-                 y_dim=None, z_dim=4, gf_dim=64, df_dim=64,
+                 y_dim=None, z_dim=4, gf_dim=128, df_dim=64,
                  gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
         """
 
@@ -60,7 +60,7 @@ class DCGAN(object):
 
     def build_model(self, is_train):
         if self.y_dim:
-            self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
+            self.y = tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
         self.image_size = 64
         sketches, images = get_chair_pipeline_training_from_dump('data/all_chairs_sketch_rendered_64x64.tfrecords', self.batch_size,
@@ -92,13 +92,19 @@ class DCGAN(object):
         with tf.variable_scope('generator_loss') as scope:
             self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
 
+        with tf.variable_scope('L2'):
+            gray_generated = tf.image.rgb_to_grayscale(self.G)
+            whitened_generated = tf.image.per_image_whitening(gray_generated)
+            gray_gt = tf.image.rgb_to_grayscale(self.images)
+            whitened_gt = tf.image.per_image_whitening(gray_gt)
+            self.l2_loss = tf.square(whitened_generated - whitened_gt)
+
         self.bn_assigners = tf.group(*batch_norm.assigners)
 
         t_vars = tf.trainable_variables()
 
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
-
         self.make_summary_ops()
         self.saver = tf.train.Saver(self.d_vars + self.g_vars +
                                     batch_norm.shadow_variables,
@@ -108,10 +114,22 @@ class DCGAN(object):
     def train(self, config, run_string="???"):
         """Train DCGAN"""
 
+        if config.continue_from_iteration:
+            counter = config.continue_from_iteration
+        else:
+            counter = 0
+
+        global_step = tf.Variable(counter, name='global_step', trainable=False)
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.d_loss, var_list=self.d_vars)
-        g_lr = tf.placeholder(tf.float32, shape=[])
-        g_optim = tf.train.AdamOptimizer(learning_rate=g_lr, beta1=config.beta1) \
+                          .minimize(self.d_loss, var_list=self.d_vars, global_step=global_step)
+
+        # Learning rate of generator is gradually decreasing.
+        self.g_lr = tf.train.exponential_decay(config.learning_rate,
+                                               global_step=global_step,
+                                               decay_steps=20000,
+                                               decay_rate=0.8,
+                                               staircase=True)
+        g_optim = tf.train.AdamOptimizer(learning_rate=self.g_lr, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
 
         # See that moving average is also updated with g_optim.
@@ -133,22 +151,18 @@ class DCGAN(object):
 
         try:
             # Training
-            if config.continue_from_iteration:
-                counter = config.continue_from_iteration
-            else:
-                counter = 0
-            lr = config.learning_rate
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
 
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
-                                                                  self.d_loss_real, self.g_loss], feed_dict={g_lr: lr})
+                                                                  self.d_loss_real, self.g_loss])
                 # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
-                errD_fake_threshold = 1e-5
+                MAX_ADDITIONAL_UPDATES = 5
+                errD_fake_threshold = 1e-4
                 additional_G_runs = 0
-                while errD_fake < errD_fake_threshold:
-                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim], feed_dict={g_lr: lr})
+                while errD_fake < errD_fake_threshold and additional_G_runs < MAX_ADDITIONAL_UPDATES:
+                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
                     additional_G_runs += 1
 
                 toc = time.time()
@@ -173,8 +187,6 @@ class DCGAN(object):
 
                 if np.mod(counter, 2000) == 100:
                     self.save(config.checkpoint_dir, counter)
-                if np.mod(counter, 20000) == 0:
-                    lr /= 2
 
 
         except tf.errors.OutOfRangeError:
@@ -198,8 +210,8 @@ class DCGAN(object):
         return tf.nn.sigmoid(h4)
 
     def generator(self, sketches, z=None, y=None):
-        s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
-        s1 = lrelu(self.g_s_bn1(conv2d(s0, self.df_dim * 2, name='g_s1_conv')))
+        self.s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
+        s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
         s2 = lrelu(self.g_s_bn2(conv2d(s1, self.df_dim * 4, name='g_s2_conv')))
         s3 = lrelu(self.g_s_bn3(conv2d(s2, self.df_dim * 8, name='g_s3_conv')))
         # Size after 4 convolutions with stride 2.
@@ -233,6 +245,8 @@ class DCGAN(object):
         tf.scalar_summary('d_loss_real', self.d_loss_real)
         tf.scalar_summary('g_loss', self.g_loss)
         tf.scalar_summary('d_loss', self.d_loss)
+        tf.scalar_summary('g_lr', self.g_lr)
+        tf.scalar_summary('l2_loss', self.l2_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
         tf.histogram_summary('d_h0', self.d_h0)
         if self.z_dim:
@@ -242,7 +256,7 @@ class DCGAN(object):
 
     def save(self, checkpoint_dir, step):
         if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
+            os.makedirs(checkpoint_dir) 
 
         self.saver.save(self.sess,
                         os.path.join(checkpoint_dir, self.model_name),
