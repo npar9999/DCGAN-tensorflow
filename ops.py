@@ -135,9 +135,7 @@ def linear(input_, output_size, scope='Linear', stddev=0.02):
 
 
 def normalize_batch_of_images(batch_of_images):
-    s = [x.value for x in batch_of_images.get_shape()]
-    s[1] = s[2] = 1
-    mean, var = tf.nn.moments(batch_of_images, [1,2])
+    mean, var = tf.nn.moments(batch_of_images, [1,2], keep_dims=True)
     std = tf.sqrt(var)
-    normed = (batch_of_images - tf.reshape(mean, s)) / tf.reshape(std, s)
+    normed = (batch_of_images - mean) / std
     return normed

@@ -99,7 +99,7 @@ class DCGAN(object):
             whitened_generated = normalize_batch_of_images(gray_generated)
             gray_gt = tf.image.rgb_to_grayscale(self.images)
             whitened_gt = normalize_batch_of_images(gray_gt)
-            self.l2_loss = tf.square(whitened_generated - whitened_gt)
+            self.l2_loss = tf.reduce_mean(tf.square(whitened_generated - whitened_gt))
 
         self.bn_assigners = tf.group(*batch_norm.assigners)
 
