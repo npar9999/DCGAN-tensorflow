@@ -58,6 +58,8 @@ class DCGAN(object):
 
         self.build_model(is_train)
 
+
+
     def build_model(self, is_train):
         if self.y_dim:
             self.y = tf.placeholder(tf.float32, [None, self.y_dim], name='y')
@@ -94,9 +96,9 @@ class DCGAN(object):
 
         with tf.variable_scope('L2'):
             gray_generated = tf.image.rgb_to_grayscale(self.G)
-            whitened_generated = tf.image.per_image_whitening(gray_generated)
+            whitened_generated = normalize_batch_of_images(gray_generated)
             gray_gt = tf.image.rgb_to_grayscale(self.images)
-            whitened_gt = tf.image.per_image_whitening(gray_gt)
+            whitened_gt = normalize_batch_of_images(gray_gt)
             self.l2_loss = tf.square(whitened_generated - whitened_gt)
 
         self.bn_assigners = tf.group(*batch_norm.assigners)
@@ -105,7 +107,6 @@ class DCGAN(object):
 
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
-        self.make_summary_ops()
         self.saver = tf.train.Saver(self.d_vars + self.g_vars +
                                     batch_norm.shadow_variables,
                                     max_to_keep=0)
@@ -146,6 +147,7 @@ class DCGAN(object):
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
+        self.make_summary_ops()
         summary_op = tf.merge_all_summaries()
         summary_writer = tf.train.SummaryWriter(config.summary_dir, graph_def=self.sess.graph_def)
 
