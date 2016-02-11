@@ -8,6 +8,7 @@ from matplotlib.widgets import Slider
 import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess, make_image_producer
+import scipy
 
 flags = tf.app.flags
 
@@ -83,7 +84,7 @@ class SketchScreen:
             self.roundline(self.screen, color, pos, self.last_pos,  self.radius)
 
     def get_content_as_np_array(self):
-        return pygame.surfarray.array3d(self.screen)[:,:,0] / (32.0 * 8)
+        return pygame.surfarray.array3d(self.screen)[:,:,0].astype(np.float32) / (32.0 * 8)
 
 
     def enter_loop(self):
@@ -185,7 +186,7 @@ def main(_):
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         dcgan = DCGAN(sess, batch_size=1, is_train=False)
         full_sketch = tf.placeholder(tf.float32, [512, 512])
-        small_sketch = tf.image.resize_bilinear(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
+        small_sketch = tf.image.resize_area(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
         small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
         small_sketch = tf.transpose(small_sketch, [1, 0, 2])
         small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
@@ -208,7 +209,12 @@ def main(_):
         while draw_thread.is_alive:
             try:
                 s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
+
                 unnormed_small_sketch = (np.reshape(s, [64, 64, 1]) + 1) / 2
+
+                # Dumps painted sketch.
+                #scipy.misc.imsave('test.png', np.reshape(unnormed_small_sketch, (64, 64)))
+
                 z = np.reshape(np.asarray([slider.val for slider in output_screen.sliders], dtype=np.float32), [1, 4])
                 img = sess.run(dcgan.G, feed_dict={dcgan.z: z, dcgan.sketches: s})
 
