@@ -43,10 +43,6 @@ def main(_):
     used_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, run_folder)
     print('Restoring from ' + FLAGS.checkpoint_dir)
 
-    output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', )
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-    print('Writing output to ' + output_folder)
 
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
           test_files = sorted(glob.glob('test_sketches/*.png'))
@@ -65,7 +61,12 @@ def main(_):
 
           # Important: Since not all variables are restored, some need to be initialized here.
           tf.initialize_all_variables().run()
-          dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
+          loaded_iteration_string = dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
+
+          output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', loaded_iteration_string[0])
+          if not os.path.exists(output_folder):
+              os.makedirs(output_folder)
+          print('Writing output to ' + output_folder)
 
           coord = tf.train.Coordinator()
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)

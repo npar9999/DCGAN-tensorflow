@@ -280,3 +280,4 @@ class DCGAN(object):
         ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
         print('Reading variables to be restored from ' + ckpt_file)
         self.saver.restore(self.sess, ckpt_file)
+        return ckpt_name
