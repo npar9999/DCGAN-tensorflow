@@ -65,6 +65,7 @@ class DCGAN(object):
             self.y = tf.placeholder(tf.float32, [None, self.y_dim], name='y')
 
         self.image_size = 64
+        self.abstract_size = self.image_size // 2 ** 4
         sketches, images = get_chair_pipeline_training_from_dump('data/all_chairs_sketch_rendered_64x64.tfrecords', self.batch_size,
                                                                  10000, image_size=self.image_size)
         self.images = images
@@ -73,6 +74,8 @@ class DCGAN(object):
             if self.z_dim:
                 self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
         else:
+            self.abstract = tf.placeholder(tf.float32, [None, self.abstract_size, self.abstract_size,
+                                                        self.df_dim * 8 + self.z_dim])
             self.sketches = tf.placeholder(tf.float32, [None, self.sample_size,
                                                         self.sample_size, 1])
             if self.z_dim:
@@ -80,6 +83,8 @@ class DCGAN(object):
 
         with tf.variable_scope('generator') as scope:
             self.G = self.generator(self.sketches, self.z)
+            if not is_train:
+                self.G_abstract = self.generator(self.abstract, from_abstract_representation=True)
 
         with tf.variable_scope('discriminator') as scope:
             self.D = self.discriminator(self.images, self.sketches)
@@ -211,30 +216,35 @@ class DCGAN(object):
 
         return tf.nn.sigmoid(h4)
 
-    def generator(self, sketches, z=None, y=None):
-        self.s0 = lrelu(conv2d(sketches, self.df_dim, name='g_s0_conv'))
-        self.s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
-        self.s2 = lrelu(self.g_s_bn2(conv2d(self.s1, self.df_dim * 4, name='g_s2_conv')))
-        s3 = lrelu(self.g_s_bn3(conv2d(self.s2, self.df_dim * 8, name='g_s3_conv')))
-        # Size after 4 convolutions with stride 2.
-        downsampled_size = self.image_size // 2 ** 4
+    def generator(self, sketches_or_abstract_representations, z=None, y=None, from_abstract_representation=False):
+        if from_abstract_representation:
+            # Used when feeding abstract representation directly, not deriving it from a sketch.
+            used_abstract = sketches_or_abstract_representations
+            tf.get_variable_scope().reuse_variables()
+        else:
+            self.s0 = lrelu(conv2d(sketches_or_abstract_representations, self.df_dim, name='g_s0_conv'))
+            self.s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
+            self.s2 = lrelu(self.g_s_bn2(conv2d(self.s1, self.df_dim * 4, name='g_s2_conv')))
+            s3 = lrelu(self.g_s_bn3(conv2d(self.s2, self.df_dim * 8, name='g_s3_conv')))
+            # Size after 4 convolutions with stride 2.
 
-        z_slices = tf.mul(tf.ones([self.batch_size, downsampled_size, downsampled_size, self.z_dim]),
-                          tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
-        self.abstract_representation = tf.concat(3, [s3, z_slices])
+            z_slices = tf.mul(tf.ones([self.batch_size, self.abstract_size, self.abstract_size, self.z_dim]),
+                              tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
+            self.abstract_representation = tf.concat(3, [s3, z_slices])
+            used_abstract = self.abstract_representation
 
-        h1 = deconv2d(self.abstract_representation, [self.batch_size, downsampled_size * 2,
-                                                     downsampled_size * 2, self.gf_dim*4 + self.z_dim],
+        h1 = deconv2d(used_abstract, [self.batch_size, self.abstract_size * 2,
+                                                     self.abstract_size * 2, self.gf_dim*4 + self.z_dim],
                       name='g_h1')
         h1 = tf.nn.relu(self.g_bn1(h1))
 
-        h2 = deconv2d(h1, [self.batch_size, downsampled_size * 4, downsampled_size * 4, self.gf_dim*2], name='g_h2')
+        h2 = deconv2d(h1, [self.batch_size, self.abstract_size * 4, self.abstract_size * 4, self.gf_dim*2], name='g_h2')
         h2 = tf.nn.relu(self.g_bn2(h2))
 
-        h3 = deconv2d(h2, [self.batch_size, downsampled_size * 8, downsampled_size * 8, self.gf_dim*1], name='g_h3')
+        h3 = deconv2d(h2, [self.batch_size, self.abstract_size * 8, self.abstract_size * 8, self.gf_dim*1], name='g_h3')
         h3 = tf.nn.relu(self.g_bn3(h3))
 
-        h4 = deconv2d(h3, [self.batch_size, downsampled_size * 16, downsampled_size * 16, self.c_dim], name='g_h4')
+        h4 = deconv2d(h3, [self.batch_size, self.abstract_size * 16, self.abstract_size * 16, self.c_dim], name='g_h4')
 
         return tf.nn.tanh(h4)
 

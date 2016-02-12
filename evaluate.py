@@ -47,15 +47,14 @@ def main(_):
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
           test_files = sorted(glob.glob('test_sketches/*.png'))
           FLAGS.batch_size = len(test_files)
-          with tf.device('/cpu:0'):
-              test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
-                                                         shuffle=False, whiten='sketch', color=False, augment=False)
-              test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
+          test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
+                                                     shuffle=False, whiten='sketch', color=False, augment=False)
+          test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
-              dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
+          dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
 
-              # Define tensor for visualizing abstract representation.
-              Vs = [activations_to_images(x) for x in [dcgan.s0, dcgan.s1, dcgan.s2, dcgan.abstract_representation]]
+          # Define tensor for visualizing abstract representation.
+          Vs = [activations_to_images(x) for x in [dcgan.s0, dcgan.s1, dcgan.s2, dcgan.abstract_representation]]
 
           # Important: Since not all variables are restored, some need to be initialized here.
           tf.initialize_all_variables().run()
@@ -86,15 +85,18 @@ def main(_):
 
               for i in xrange(FLAGS.num_samples):
                   batch_z = batch_z_all[i, :, :]
-                  img, abstract_rep = sess.run([dcgan.G, dcgan.abstract_representation],
-                                               feed_dict={dcgan.z: batch_z,
-                                                          dcgan.sketches: batch_sketches})
+                  img = sess.run(dcgan.G, feed_dict={dcgan.z: batch_z,
+                                                     dcgan.sketches: batch_sketches})
                   filename_out = os.path.join(output_folder, '{}_img.png'.format(str(i).zfill(3)))
                   save_images(img, [grid_size, grid_size], filename_out)
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
                   if i == 0:
-                      activations = sess.run([x for x, _ in Vs], feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+                      activations = sess.run([dcgan.abstract_representation] + [x for x, _ in Vs],
+                                             feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+                      # Unpack correctly.
+                      abstract_rep = activations[0]
+                      activations = activations[1:]
 
 
               for j, file_name in enumerate(test_files):
@@ -109,6 +111,21 @@ def main(_):
                       filename_out = os.path.join(output_folder, '{}_layer_{}.png'.format(name_without_ext, idx))
                       save_images(activations[idx][j, :, :, :], [grid_size, grid_size], filename_out,
                                   invert=False, channels=1)
+
+              for k in [1, 5, 10, 20, 50, 100, 200, 300]:
+                abstract_rep_hacked = np.copy(abstract_rep)
+                for j, file_name in enumerate(test_files):
+                    # Find highest non-z activation (last few slices are random parameters only)
+                    sum_activations = np.sum(abstract_rep[j, :, :, 0:-dcgan.z_dim], axis=(0, 1))
+                    strongest_k_activations = np.argpartition(sum_activations, -k)[-k:]
+                    # Set strongest activation to zero.
+                    abstract_rep_hacked[j, :, :, strongest_k_activations] = 0
+
+                grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
+                img = sess.run(dcgan.G_abstract, feed_dict={dcgan.abstract: abstract_rep_hacked})
+                filename_out = os.path.join(output_folder,
+                                            '000_img_without_highest_{}_activation.png'.format(str(k).zfill(3)))
+                save_images(img, [grid_size, grid_size], filename_out)
 
           except tf.errors.OutOfRangeError as e:
               print('Done')
