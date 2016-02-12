@@ -62,7 +62,8 @@ class DCGAN(object):
 
     def build_model(self, is_train):
         if self.y_dim:
-            self.y= tf.placeholder(tf.float32, [None, self.y_dim], name='y')
+            self.y = tf.placeholder(tf.float32, [None, self.y_dim], name='y')
+        
         self.image_size = 128
         sketches, self.images = get_chair_pipeline_training_from_dump('recolor_chairs_128x128.tfrecords',
                                                                  self.batch_size, 10000, image_size=self.image_size)
@@ -92,14 +93,19 @@ class DCGAN(object):
         with tf.variable_scope('generator_loss') as scope:
             self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
 
+        with tf.variable_scope('L2'):
+            gray_generated = tf.image.rgb_to_grayscale(self.G)
+            whitened_generated = normalize_batch_of_images(gray_generated)
+            gray_gt = tf.image.rgb_to_grayscale(self.images)
+            whitened_gt = normalize_batch_of_images(gray_gt)
+            self.l2_loss = tf.square(whitened_generated - whitened_gt)
+
         self.bn_assigners = tf.group(*batch_norm.assigners)
 
         t_vars = tf.trainable_variables()
 
         self.d_vars = [var for var in t_vars if 'd_' in var.name]
         self.g_vars = [var for var in t_vars if 'g_' in var.name]
-
-        self.make_summary_ops()
         self.saver = tf.train.Saver(self.d_vars + self.g_vars +
                                     batch_norm.shadow_variables,
                                     max_to_keep=0)
@@ -108,9 +114,22 @@ class DCGAN(object):
     def train(self, config, run_string="???"):
         """Train DCGAN"""
 
+        if config.continue_from_iteration:
+            counter = config.continue_from_iteration
+        else:
+            counter = 0
+
+        global_step = tf.Variable(counter, name='global_step', trainable=False)
         d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
+                          .minimize(self.d_loss, var_list=self.d_vars, global_step=global_step)
+
+        # Learning rate of generator is gradually decreasing.
+        self.g_lr = tf.train.exponential_decay(config.learning_rate,
+                                               global_step=global_step,
+                                               decay_steps=20000,
+                                               decay_rate=0.8,
+                                               staircase=True)
+        g_optim = tf.train.AdamOptimizer(learning_rate=self.g_lr, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
 
         # See that moving average is also updated with g_optim.
@@ -121,44 +140,38 @@ class DCGAN(object):
         if config.continue_from:
             checkpoint_dir = os.path.join(os.path.dirname(config.checkpoint_dir), config.continue_from)
             print('Loading variables from ' + checkpoint_dir)
-            self.load(checkpoint_dir)
+            self.load(checkpoint_dir, config.continue_from_iteration)
 
         start_time = time.time()
 
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=self.sess, coord=coord)
+        self.make_summary_ops()
         summary_op = tf.merge_all_summaries()
         summary_writer = tf.train.SummaryWriter(config.summary_dir, graph_def=self.sess.graph_def)
 
         try:
             # Training
-            counter = 0
             while not coord.should_stop():
                 # Update D and G network
                 tic = time.time()
 
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                   self.d_loss_real, self.g_loss])
-#                [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
-
-                MAX_ADDITIONAL_UPDATES = 2
-                errD_fake_threshold = 1e-5
+                # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
+                MAX_ADDITIONAL_UPDATES = 5
+                errD_fake_threshold = 1e-4
                 additional_G_runs = 0
                 while errD_fake < errD_fake_threshold and additional_G_runs < MAX_ADDITIONAL_UPDATES:
                     [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
                     additional_G_runs += 1
 
-                additional_D_runs = 0
-                while errG < errD_fake_threshold and additional_D_runs < MAX_ADDITIONAL_UPDATES:
-                    [errG, _] = self.sess.run([self.g_loss, d_optim])
-                    additional_D_runs += 1
-
                 toc = time.time()
                 counter += 1
                 duration = toc - tic
-                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f, G+: %1d, D+: %1d"
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f, G+: %2d"
                     % (run_string, counter, toc - start_time, duration, self.batch_size / duration,
-                       errD_fake+errD_real, errG, additional_G_runs, additional_D_runs))
+                       errD_fake+errD_real, errG, additional_G_runs))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
@@ -238,6 +251,8 @@ class DCGAN(object):
         tf.scalar_summary('d_loss_real', self.d_loss_real)
         tf.scalar_summary('g_loss', self.g_loss)
         tf.scalar_summary('d_loss', self.d_loss)
+        tf.scalar_summary('g_lr', self.g_lr)
+        tf.scalar_summary('l2_loss', self.l2_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
         tf.histogram_summary('d_h0', self.d_h0)
         if self.z_dim:
@@ -259,7 +274,7 @@ class DCGAN(object):
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and iteration:
             # Restores dump of given iteration
-            ckpt_name = self.model_name + '-' + iteration
+            ckpt_name = self.model_name + '-' + str(iteration)
         elif ckpt and ckpt.model_checkpoint_path:
             # Restores most recent dump
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
