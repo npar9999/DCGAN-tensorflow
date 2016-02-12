@@ -28,6 +28,7 @@ class DCGAN(object):
         self.sess = sess
         self.batch_size = batch_size
         self.sample_size = sample_size
+
         self.image_shape = image_shape
 
         self.y_dim = y_dim
@@ -57,7 +58,6 @@ class DCGAN(object):
         self.g_s_bn4 = batch_norm(is_train, convolutional=False, name='g_s_bn4')
 
         self.build_model(is_train)
-
 
 
     def build_model(self, is_train):
@@ -166,7 +166,7 @@ class DCGAN(object):
                                                                   self.d_loss_real, self.g_loss])
                 # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
                 MAX_ADDITIONAL_UPDATES = 5
-                errD_fake_threshold = 1e-4
+                errD_fake_threshold = 1e-3
                 additional_G_runs = 0
                 while errD_fake < errD_fake_threshold and additional_G_runs < MAX_ADDITIONAL_UPDATES:
                     [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
