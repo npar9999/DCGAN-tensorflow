@@ -159,7 +159,7 @@ class DCGAN(object):
                 _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
                                                                   self.d_loss_real, self.g_loss])
                 # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
-                MAX_ADDITIONAL_UPDATES = 5
+                MAX_ADDITIONAL_UPDATES = 0
                 errD_fake_threshold = 1e-4
                 additional_G_runs = 0
                 while errD_fake < errD_fake_threshold and additional_G_runs < MAX_ADDITIONAL_UPDATES:
