@@ -1,3 +1,5 @@
+from __future__ import division
+
 import pygame
 from pygame.locals import *
 import numpy as np
@@ -8,7 +10,7 @@ from matplotlib.widgets import Slider
 import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess, make_image_producer
-import scipy
+import scipy.misc
 
 flags = tf.app.flags
 
@@ -113,7 +115,7 @@ class SketchScreen:
                         self.radius = max(self.radius - 3, 2)
                     for x in range(K_KP1, K_KP9 + 1):
                         if pressed[x]:
-                            self.strength = (x - K_KP0) * 255 / 9
+                            self.strength = (x - K_KP0) * 255 // 9
 
                 elif e.type == pygame.MOUSEBUTTONDOWN:
                     if e.button == MouseButtons.RIGHT:
@@ -186,6 +188,7 @@ def main(_):
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         dcgan = DCGAN(sess, batch_size=1, is_train=False)
         full_sketch = tf.placeholder(tf.float32, [512, 512])
+        # TODO: Scale full_sketch to fill out image.
         small_sketch = tf.image.resize_area(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
         small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
         small_sketch = tf.transpose(small_sketch, [1, 0, 2])
@@ -208,7 +211,23 @@ def main(_):
 
         while draw_thread.is_alive:
             try:
-                s = sess.run(small_sketch, feed_dict={full_sketch: sc.get_content_as_np_array()})
+                A = sc.get_content_as_np_array()
+                B = np.argwhere(A)
+                if len(B) > 0:
+                    (ystart, xstart), (ystop, xstop) = B.min(0), B.max(0) + 1
+                    full_sketch_trimmed = A[ystart:ystop, xstart:xstop]
+                    resize_factor = 512 / max(full_sketch_trimmed.shape)
+                    full_sketch_resized = scipy.misc.imresize(full_sketch_trimmed, resize_factor)
+                    x_padding_needed = 512 - full_sketch_resized.shape[0]
+                    y_padding_needed = 512 - full_sketch_resized.shape[1]
+                    full_sketch_final = np.pad(full_sketch_resized,
+                                               ((int(np.floor(x_padding_needed / 2)), int(np.ceil(x_padding_needed / 2))),
+                                                (int(np.floor(y_padding_needed / 2)), int(np.ceil(y_padding_needed / 2)))),
+                                               'constant', constant_values=0)
+                else:
+                    # Empty dummy image
+                    full_sketch_final = np.zeros([512, 512], dtype=np.float32)
+                s = sess.run(small_sketch, feed_dict={full_sketch: full_sketch_final})
 
                 unnormed_small_sketch = (np.reshape(s, [64, 64, 1]) + 1) / 2
 
