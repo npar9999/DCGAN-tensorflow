@@ -167,6 +167,7 @@ class DCGAN(object):
                     additional_G_runs += 1
 
                 toc = time.time()
+
                 counter += 1
                 duration = toc - tic
                 print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f, G+: %2d"
@@ -284,3 +285,4 @@ class DCGAN(object):
         ckpt_file = os.path.join(checkpoint_dir, ckpt_name)
         print('Reading variables to be restored from ' + ckpt_file)
         self.saver.restore(self.sess, ckpt_file)
+        return ckpt_name
