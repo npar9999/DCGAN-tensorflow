@@ -64,6 +64,23 @@ class SketchScreen:
         self.strength = 125
         self.undo = UndoStack(self.screen)
         self.undo.push()
+        self.set_paint_cursor(self.radius)
+
+    def set_paint_cursor(self, radius):
+        paint_cursor_strings = []
+        grid_size = int(np.ceil(2 * radius / 8)) * 8
+        print(radius, grid_size)
+        for x in xrange(grid_size):
+            paint_cursor_string = ''
+            for y in xrange(grid_size):
+                if (x - grid_size / 2) ** 2 + (y - grid_size / 2) ** 2 <= radius * radius:
+                    paint_cursor_string += 'X'
+                else:
+                    paint_cursor_string += ' '
+            paint_cursor_strings.append(paint_cursor_string)
+        paint_cursor, paint_mask = pygame.cursors.compile(paint_cursor_strings)
+        pygame.mouse.set_cursor((grid_size, grid_size), (grid_size // 2, grid_size // 2), paint_cursor, paint_mask)
+
 
     def roundline(self, srf, color, start, end, radius=1):
         dx = end[0]-start[0]
@@ -112,8 +129,10 @@ class SketchScreen:
                         self.undo.pop_forward()
                     elif pressed[K_KP_PLUS]:
                         self.radius = min(self.radius + 3, 15)
+                        self.set_paint_cursor(self.radius)
                     elif pressed[K_KP_MINUS]:
                         self.radius = max(self.radius - 3, 2)
+                        self.set_paint_cursor(self.radius)
                     for x in range(K_KP1, K_KP9 + 1):
                         if pressed[x]:
                             self.strength = (x - K_KP0) * 255 // 9
