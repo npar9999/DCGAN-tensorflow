@@ -9,8 +9,8 @@ from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
 class DCGAN(object):
     def __init__(self, sess,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
-                 y_dim=None, z_dim=4, gf_dim=128, df_dim=64,
-                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
+                 y_dim=None, z_dim=0, gf_dim=128, df_dim=64,
+                 gfc_dim=512, dfc_dim=1024, c_dim=1, is_train=True):
         """
 
         Args:
@@ -33,6 +33,7 @@ class DCGAN(object):
 
         self.y_dim = y_dim
         self.z_dim = z_dim
+        self.z = None
 
         self.gf_dim = gf_dim
         self.df_dim = df_dim
@@ -66,8 +67,9 @@ class DCGAN(object):
 
         self.image_size = 64
         self.abstract_size = self.image_size // 2 ** 4
-        sketches, images = get_chair_pipeline_training_from_dump('data/all_chairs_sketch_rendered_64x64.tfrecords', self.batch_size,
-                                                                 10000, image_size=self.image_size)
+        sketches, images = get_chair_pipeline_training_from_dump('data/all_sketches_and_depth.tfrecords', self.batch_size,
+                                                                 10000, image_size=self.image_size,
+                                                                 img_channels=self.c_dim)
         self.images = images
         if is_train:
             self.sketches = sketches
@@ -133,7 +135,7 @@ class DCGAN(object):
         self.g_lr = tf.train.exponential_decay(config.learning_rate,
                                                global_step=global_step,
                                                decay_steps=20000,
-                                               decay_rate=0.8,
+                                               decay_rate=0.5,
                                                staircase=True)
         g_optim = tf.train.AdamOptimizer(learning_rate=self.g_lr, beta1=config.beta1) \
                           .minimize(self.g_loss, var_list=self.g_vars)
@@ -225,12 +227,12 @@ class DCGAN(object):
             self.s0 = lrelu(conv2d(sketches_or_abstract_representations, self.df_dim, name='g_s0_conv'))
             self.s1 = lrelu(self.g_s_bn1(conv2d(self.s0, self.df_dim * 2, name='g_s1_conv')))
             self.s2 = lrelu(self.g_s_bn2(conv2d(self.s1, self.df_dim * 4, name='g_s2_conv')))
-            s3 = lrelu(self.g_s_bn3(conv2d(self.s2, self.df_dim * 8, name='g_s3_conv')))
+            self.abstract_representation = lrelu(self.g_s_bn3(conv2d(self.s2, self.df_dim * 8, name='g_s3_conv')))
             # Size after 4 convolutions with stride 2.
-
-            z_slices = tf.mul(tf.ones([self.batch_size, self.abstract_size, self.abstract_size, self.z_dim]),
-                              tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
-            self.abstract_representation = tf.concat(3, [s3, z_slices])
+            if self.z_dim:
+                z_slices = tf.mul(tf.ones([self.batch_size, self.abstract_size, self.abstract_size, self.z_dim]),
+                                  tf.reshape(self.z, [self.batch_size, 1, 1, self.z_dim]))
+                self.abstract_representation = tf.concat(3, [self.abstract_representation, z_slices])
             used_abstract = self.abstract_representation
 
         h1 = deconv2d(used_abstract, [self.batch_size, self.abstract_size * 2,
