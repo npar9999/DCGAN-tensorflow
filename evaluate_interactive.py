@@ -56,15 +56,18 @@ class UndoStack:
 
 class SketchScreen:
 
-    def __init__(self):
+    def __init__(self, title):
+        pygame.init()
         self.draw_on = False
         self.last_pos = (0, 0)
         self.radius = 5
         self.screen = pygame.display.set_mode((512,512))
+        pygame.display.set_caption(title + ', press H for help')
         self.strength = 125
         self.undo = UndoStack(self.screen)
         self.undo.push()
         self.set_paint_cursor(self.radius)
+        self.showing_help = False
 
     def set_paint_cursor(self, radius):
         paint_cursor_strings = []
@@ -80,6 +83,34 @@ class SketchScreen:
             paint_cursor_strings.append(paint_cursor_string)
         paint_cursor, paint_mask = pygame.cursors.compile(paint_cursor_strings)
         pygame.mouse.set_cursor((grid_size, grid_size), (grid_size // 2, grid_size // 2), paint_cursor, paint_mask)
+
+    def show_help(self):
+        if self.showing_help:
+            self.undo.pop_backward()
+        else:
+            self.undo.push()
+            self.screen.fill((0, 0, 0, 0))
+            font = pygame.font.SysFont('monospace', 24)
+            messages = [['Available keys:', ''],
+                        ['L', 'Load a training images'],
+                        ['C', 'Clear screen'],
+                        ['Z', 'Undo last stroke'],
+                        ['X', 'Redo last stroke'],
+                        ['+', 'Increase brush radius'],
+                        ['-', 'Decrease brush radius'],
+                        ['Keypad Nr', 'Brightness of stroke'],
+                        ['H', 'Show/Hide this help'],
+                        ['LM pressed', 'Draw'],
+                        ['RM pressed', 'Erase']]
+            y = 10
+            for label, message in messages:
+                l = font.render(label, 1, (255, 255, 255))
+                m = font.render(message, 1, (255, 255, 255))
+                self.screen.blit(l, (10, y))
+                self.screen.blit(m, (200, y))
+                y += 30
+
+        self.showing_help = not self.showing_help
 
 
     def roundline(self, srf, color, start, end, radius=1):
@@ -112,49 +143,54 @@ class SketchScreen:
                     raise StopIteration
                 elif e.type == pygame.KEYDOWN:
                     pressed = pygame.key.get_pressed()
-                    if pressed[K_l]:
-                        # l: Loads initial image
-                        filename = random.sample(['part_of_recolor_experiment.png'], 1)
-                        loaded_img = pygame.transform.scale(pygame.image.load('test_sketches/' + filename[0]),
-                                                     (512, 512))
-                        self.screen.blit(loaded_img, (0,0))
-                        self.undo.push()
-                    elif pressed[K_c]:
-                        # c: Clears screen
-                        self.screen.fill((0,0,0))
-                        self.undo.push()
-                    elif pressed[K_z]:
-                        self.undo.pop_backward()
-                    elif pressed[K_x]:
-                        self.undo.pop_forward()
-                    elif pressed[K_KP_PLUS]:
-                        self.radius = min(self.radius + 3, 15)
-                        self.set_paint_cursor(self.radius)
-                    elif pressed[K_KP_MINUS]:
-                        self.radius = max(self.radius - 3, 2)
-                        self.set_paint_cursor(self.radius)
-                    for x in range(K_KP1, K_KP9 + 1):
-                        if pressed[x]:
-                            self.strength = (x - K_KP0) * 255 // 9
+                    if pressed[K_h]:
+                        self.show_help()
+                    if not self.showing_help:
+                        if pressed[K_l]:
+                            # l: Loads initial image
+                            filename = random.sample(['part_of_recolor_experiment.png'], 1)
+                            loaded_img = pygame.transform.scale(pygame.image.load('test_sketches/' + filename[0]),
+                                                         (512, 512))
+                            self.screen.blit(loaded_img, (0,0))
+                            self.undo.push()
+                        elif pressed[K_c]:
+                            # c: Clears screen
+                            self.screen.fill((0, 0, 0, 0))
+                            self.undo.push()
+                        elif pressed[K_z]:
+                            self.undo.pop_backward()
+                        elif pressed[K_x]:
+                            self.undo.pop_forward()
+                        elif pressed[K_KP_PLUS] or pressed[K_PLUS]:
+                            self.radius = min(self.radius + 3, 15)
+                            self.set_paint_cursor(self.radius)
+                        elif pressed[K_KP_MINUS] or pressed[K_MINUS]:
+                            self.radius = max(self.radius - 3, 2)
+                            self.set_paint_cursor(self.radius)
+                        else:
+                            for x in range(K_KP1, K_KP9 + 1):
+                                if pressed[x]:
+                                    self.strength = (x - K_KP0) * 255 // 9
 
-                elif e.type == pygame.MOUSEBUTTONDOWN:
-                    if e.button == MouseButtons.RIGHT:
-                        self.previous_strength = self.strength
-                        self.strength = 0
-                    else:
-                        self.previous_strength = None
+                elif not self.showing_help:
+                    if e.type == pygame.MOUSEBUTTONDOWN:
+                        if e.button == MouseButtons.RIGHT:
+                            self.previous_strength = self.strength
+                            self.strength = 0
+                        else:
+                            self.previous_strength = None
 
-                    self.brush_at(e.pos)
-                    self.draw_on = True
-                elif e.type == pygame.MOUSEBUTTONUP:
-                    if self.previous_strength is not None:
-                        self.strength = self.previous_strength
-                    self.draw_on = False
-                    self.undo.push()
-                elif e.type == pygame.MOUSEMOTION:
-                    if self.draw_on:
-                        self.brush_at(e.pos, True)
-                    self.last_pos = e.pos
+                        self.brush_at(e.pos)
+                        self.draw_on = True
+                    elif e.type == pygame.MOUSEBUTTONUP:
+                        if self.previous_strength is not None:
+                            self.strength = self.previous_strength
+                        self.draw_on = False
+                        self.undo.push()
+                    elif e.type == pygame.MOUSEMOTION:
+                        if self.draw_on:
+                            self.brush_at(e.pos, True)
+                        self.last_pos = e.pos
                 pygame.display.flip()
 
 
@@ -221,14 +257,14 @@ def main(_):
         # test_sketch = tf.train.batch([test_sketch], batch_size=1)
 
         tf.initialize_all_variables().run()
-        dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
+        ckpt_name = dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
         print('Successfully reconstructed network with variables.')
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         # s = sess.run(test_sketch)
         # print("Got sketch")
 
-        sc = SketchScreen()
+        sc = SketchScreen('Variables restored from: ' + ckpt_name)
 
         draw_thread = threading.Thread(target=sc.enter_loop)
         draw_thread.start()
