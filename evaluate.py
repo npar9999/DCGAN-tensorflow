@@ -44,7 +44,7 @@ def main(_):
     print('Restoring from ' + FLAGS.checkpoint_dir)
 
 
-    with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
+    with tf.Session(config=tf.ConfigProto(device_count={'GPU': 1})) as sess:
           test_files = sorted(glob.glob('test_sketches/*.png'))
           FLAGS.batch_size = len(test_files)
           test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
@@ -63,7 +63,7 @@ def main(_):
           output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'test_images', loaded_iteration_string)
           if not os.path.exists(output_folder):
               os.makedirs(output_folder)
-          print('Writing output to ' + output_folder)
+          print('Writing output to ' + output_folder + '/*.png')
 
           coord = tf.train.Coordinator()
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)

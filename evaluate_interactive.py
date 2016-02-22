@@ -10,7 +10,7 @@ from matplotlib.widgets import Slider
 import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess, make_image_producer
-import scipy.misc
+import scipy.misc, random
 
 flags = tf.app.flags
 
@@ -61,8 +61,6 @@ class SketchScreen:
         self.last_pos = (0, 0)
         self.radius = 5
         self.screen = pygame.display.set_mode((512,512))
-        self.init_img = pygame.transform.scale(pygame.image.load('test_sketches/part_of_recolor_experiment.png'),
-                                                     (512, 512))
         self.strength = 125
         self.undo = UndoStack(self.screen)
         self.undo.push()
@@ -99,7 +97,10 @@ class SketchScreen:
                     pressed = pygame.key.get_pressed()
                     if pressed[K_l]:
                         # l: Loads initial image
-                        self.screen.blit(self.init_img, (0,0))
+                        filename = random.sample(['part_of_recolor_experiment.png'], 1)
+                        loaded_img = pygame.transform.scale(pygame.image.load('test_sketches/' + filename[0]),
+                                                     (512, 512))
+                        self.screen.blit(loaded_img, (0,0))
                         self.undo.push()
                     elif pressed[K_c]:
                         # c: Clears screen
@@ -145,19 +146,26 @@ class SketchScreen:
 
 
 class OutputScreen:
-    def __init__(self, size):
-        data = np.zeros([size, size, 3])
+    def __init__(self, size, z_dim, c_dim):
 
         fig, (ax_input, ax_output) = plt.subplots(2, 1)
-        self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
+        if c_dim == 3:
+            data = np.zeros([size, size, c_dim])
+            self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
+        elif c_dim == 1:
+            data = np.zeros([size,size])
+            self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal', cmap=cm.Greys_r)
+        else:
+            raise Exception("Not supported")
         self.downsampled_input = ax_input.imshow(np.zeros([size,size]),
                                                  interpolation='nearest', aspect='equal', cmap=cm.Greys_r)
 
         self.sliders = []
-        for i in xrange(4):
-            ax = fig.add_axes([0.2, 0.03 * i, 0.65, 0.03])
-            s = Slider(ax, 'Random ' + str(i), -1, 1, valinit=0)
-            self.sliders.append(s)
+        if z_dim:
+            for i in xrange(4):
+                ax = fig.add_axes([0.2, 0.03 * i, 0.65, 0.03])
+                s = Slider(ax, 'Random ' + str(i), -1, 1, valinit=0)
+                self.sliders.append(s)
 
         fig.show()
 
@@ -176,14 +184,6 @@ def main(_):
 
     used_checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, run_folder)
     print('Restoring from ' + FLAGS.checkpoint_dir)
-
-
-    sc = SketchScreen()
-
-    draw_thread = threading.Thread(target=sc.enter_loop)
-    draw_thread.start()
-
-    output_screen = OutputScreen(64)
 
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         dcgan = DCGAN(sess, batch_size=1, is_train=False)
@@ -208,6 +208,13 @@ def main(_):
         threads = tf.train.start_queue_runners(sess=sess, coord=coord)
         # s = sess.run(test_sketch)
         # print("Got sketch")
+
+        sc = SketchScreen()
+
+        draw_thread = threading.Thread(target=sc.enter_loop)
+        draw_thread.start()
+
+        output_screen = OutputScreen(64, dcgan.z_dim, dcgan.c_dim)
 
         while draw_thread.is_alive:
             try:
@@ -234,10 +241,19 @@ def main(_):
                 # Dumps painted sketch.
                 #scipy.misc.imsave('test.png', np.reshape(unnormed_small_sketch, (64, 64)))
 
-                z = np.reshape(np.asarray([slider.val for slider in output_screen.sliders], dtype=np.float32), [1, 4])
-                img = sess.run(dcgan.G, feed_dict={dcgan.z: z, dcgan.sketches: s})
+                feed = {dcgan.sketches: s}
+                if dcgan.z_dim:
+                    z = np.reshape(np.asarray([slider.val * 10 for slider in output_screen.sliders], dtype=np.float32), [1, 4])
+                    feed[dcgan.z] = z
 
-                unnormed_img = (np.reshape(img, [64, 64, 3]) + 1) / 2
+                img = sess.run(dcgan.G, feed_dict=feed)
+
+                if dcgan.c_dim > 1:
+                    unnormed_img = np.reshape(img, [64, 64, dcgan.c_dim])
+                else:
+                    unnormed_img = np.reshape(img, [64, 64])
+                unnormed_img = (unnormed_img + 1) / 2
+
                 output_screen.update_content(unnormed_small_sketch, unnormed_img)
                 print('Updated image')
                 plt.pause(0.5)
