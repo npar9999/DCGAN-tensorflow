@@ -10,7 +10,7 @@ from matplotlib.widgets import Slider
 import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess, make_image_producer
-import scipy.misc, random
+import scipy.misc, random, glob, re
 
 flags = tf.app.flags
 
@@ -68,6 +68,7 @@ class SketchScreen:
         self.undo.push()
         self.set_paint_cursor(self.radius)
         self.showing_help = False
+        self.save = False
 
     def set_paint_cursor(self, radius):
         paint_cursor_strings = []
@@ -92,8 +93,9 @@ class SketchScreen:
             self.screen.fill((0, 0, 0, 0))
             font = pygame.font.SysFont('monospace', 24)
             messages = [['Available keys:', ''],
-                        ['L', 'Load a training images'],
+                        ['L', 'Load a training image'],
                         ['C', 'Clear screen'],
+                        ['S', 'Save current sketch/output']
                         ['Z', 'Undo last stroke'],
                         ['X', 'Redo last stroke'],
                         ['+', 'Increase brush radius'],
@@ -157,6 +159,8 @@ class SketchScreen:
                             # c: Clears screen
                             self.screen.fill((0, 0, 0, 0))
                             self.undo.push()
+                        elif pressed[K_s]:
+                            self.save = True
                         elif pressed[K_z]:
                             self.undo.pop_backward()
                         elif pressed[K_x]:
@@ -202,18 +206,12 @@ class SketchScreen:
 
 class OutputScreen:
     def __init__(self, size, z_dim, c_dim):
+        self.c_dim = c_dim
 
         fig, (ax_input, ax_output) = plt.subplots(2, 1)
-        if c_dim == 3:
-            data = np.zeros([size, size, c_dim])
-            self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
-        elif c_dim == 1:
-            data = np.zeros([size,size])
-            self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal', cmap=cm.Greys_r)
-        else:
-            raise Exception("Not supported")
-        self.downsampled_input = ax_input.imshow(np.zeros([size,size]),
-                                                 interpolation='nearest', aspect='equal', cmap=cm.Greys_r)
+        data = np.zeros([size, size, 3])
+        self.imshow_window = ax_output.imshow(data, interpolation='nearest', aspect='equal')
+        self.downsampled_input = ax_input.imshow(data, interpolation='nearest', aspect='equal')
 
         self.sliders = []
         if z_dim:
@@ -226,6 +224,8 @@ class OutputScreen:
 
     def update_content(self, input, output):
         self.downsampled_input.set_data(np.repeat(input, 3, 2))
+        if self.c_dim == 1:
+            output = np.repeat(output, 3, 2)
         self.imshow_window.set_data(output)
         plt.draw()
 
@@ -294,7 +294,6 @@ def main(_):
                 unnormed_small_sketch = (np.reshape(s, [64, 64, 1]) + 1) / 2
 
                 # Dumps painted sketch.
-                #scipy.misc.imsave('test.png', np.reshape(unnormed_small_sketch, (64, 64)))
 
                 feed = {dcgan.sketches: s}
                 if dcgan.z_dim:
@@ -303,14 +302,23 @@ def main(_):
 
                 img = sess.run(dcgan.G, feed_dict=feed)
 
-                if dcgan.c_dim > 1:
-                    unnormed_img = np.reshape(img, [64, 64, dcgan.c_dim])
-                else:
-                    unnormed_img = np.reshape(img, [64, 64])
+                unnormed_img = np.reshape(img, [64, 64, dcgan.c_dim])
                 unnormed_img = (unnormed_img + 1) / 2
 
                 output_screen.update_content(unnormed_small_sketch, unnormed_img)
                 print('Updated image')
+                if sc.save:
+                    sc.save = False
+                    files = sorted(glob.glob(ckpt_name + '*.png'))
+                    if files:
+                        current = int(re.search('_n_(\d)+', files[-1]).group(1)) + 1
+                    else:
+                        current = 0
+                    path = ckpt_name + '_n_' + str(current).zfill(3)
+                    scipy.misc.imsave(path + '_sketch.png', full_sketch_final)
+                    scipy.misc.imsave(path + '_sketch_small.png', np.reshape(unnormed_small_sketch, [64, 64]))
+                    scipy.misc.imsave(path + '_output.png', np.reshape(unnormed_img, [64, 64]))
+                    print('Saved to ' + path)
                 plt.pause(0.5)
             except pygame.error:
                 print('Pygame stoped, shutting down.')
