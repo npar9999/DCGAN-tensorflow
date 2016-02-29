@@ -68,13 +68,17 @@ def main(_):
           coord = tf.train.Coordinator()
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)
           try:
-              np.random.seed(FLAGS.random_seed)
-              batch_z = np.random.uniform(-1, 1, [FLAGS.num_samples, 1, dcgan.z_dim])
+              if dcgan.z_dim:
+                  np.random.seed(FLAGS.random_seed)
+                  batch_z = np.random.uniform(-1, 1, [FLAGS.num_samples, 1, dcgan.z_dim])
 
-              # Every img in one batch should share the same random vector, use numpy broadcasting here to achieve that.
-              batch_z_shape = [FLAGS.num_samples, FLAGS.batch_size, dcgan.z_dim]
-              batch_z_all = np.zeros(batch_z_shape)
-              batch_z_all[:, :, :] = batch_z
+                  # Every img in one batch should share the same random vector, use numpy broadcasting here to achieve that.
+                  batch_z_shape = [FLAGS.num_samples, FLAGS.batch_size, dcgan.z_dim]
+                  batch_z_all = np.zeros(batch_z_shape)
+                  batch_z_all[:, :, :] = batch_z
+              else:
+                  print("Reducing number of samples to 1, since to random vector is needed.")
+                  FLAGS.num_samples = 1
 
               batch_sketches = test_sketches.eval()
               grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
@@ -84,16 +88,19 @@ def main(_):
                                                       dcgan.image_size, dcgan.image_size, 3])
 
               for i in xrange(FLAGS.num_samples):
-                  batch_z = batch_z_all[i, :, :]
-                  img = sess.run(dcgan.G, feed_dict={dcgan.z: batch_z,
-                                                     dcgan.sketches: batch_sketches})
+                  feed = {dcgan.sketches: batch_sketches}
+                  if dcgan.z_dim:
+                      batch_z = batch_z_all[i, :, :]
+                      feed[dcgan.z] = batch_z
+
+                  img = sess.run(dcgan.G, feed_dict=feed)
                   filename_out = os.path.join(output_folder, '{}_img.png'.format(str(i).zfill(3)))
                   save_images(img, [grid_size, grid_size], filename_out)
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
                   if i == 0:
                       activations = sess.run([dcgan.abstract_representation] + [x for x, _ in Vs],
-                                             feed_dict={dcgan.z: batch_z, dcgan.sketches: batch_sketches})
+                                             feed_dict=feed)
                       # Unpack correctly.
                       abstract_rep = activations[0]
                       activations = activations[1:]
@@ -112,11 +119,12 @@ def main(_):
                       save_images(activations[idx][j, :, :, :], [grid_size, grid_size], filename_out,
                                   invert=False, channels=1)
 
-              for k in [1, 5, 10, 20, 50, 100, 200, 300]:
+              for k in [1, 5, 10, 20, 50, 100, 200, 300, 400, 500]:
                 abstract_rep_hacked = np.copy(abstract_rep)
                 for j, file_name in enumerate(test_files):
                     # Find highest non-z activation (last few slices are random parameters only)
-                    sum_activations = np.sum(abstract_rep[j, :, :, 0:-dcgan.z_dim], axis=(0, 1))
+                    index_first_random_dim = -1 if dcgan.z_dim == 0 else -dcgan.z_dim
+                    sum_activations = np.sum(abstract_rep[j, :, :, 0:index_first_random_dim], axis=(0, 1))
                     strongest_k_activations = np.argpartition(sum_activations, -k)[-k:]
                     # Set strongest activation to zero.
                     abstract_rep_hacked[j, :, :, strongest_k_activations] = 0
