@@ -67,7 +67,8 @@ class DCGAN(object):
 
         self.image_size = 64
         self.abstract_size = self.image_size // 2 ** 4
-        sketches, images = get_chair_pipeline_training_from_dump('data/all_sketches_and_depth.tfrecords', self.batch_size,
+        sketches, images = get_chair_pipeline_training_from_dump('data/all_sketches_and_normalized_depth.tfrecords',
+                                                                 self.batch_size,
                                                                  10000, image_size=self.image_size,
                                                                  img_channels=self.c_dim)
         self.images = images
