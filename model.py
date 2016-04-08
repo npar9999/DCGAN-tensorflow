@@ -89,25 +89,8 @@ class DCGAN(object):
             if not is_train:
                 self.G_abstract = self.generator(self.abstract, from_abstract_representation=True)
 
-        with tf.variable_scope('discriminator') as scope:
-            self.D = self.discriminator(self.images, self.sketches)
-
-            self.D_ = self.discriminator(self.G, self.sketches, reuse=True)
-
-        with tf.variable_scope('discriminator_loss') as scope:
-            self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
-            self.d_loss_fake = binary_cross_entropy_with_logits(tf.zeros_like(self.D_), self.D_)
-            self.d_loss = self.d_loss_real + self.d_loss_fake
-
-        with tf.variable_scope('generator_loss') as scope:
-            self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
-
         with tf.variable_scope('L2'):
-            gray_generated = tf.image.rgb_to_grayscale(self.G)
-            whitened_generated = normalize_batch_of_images(gray_generated)
-            gray_gt = tf.image.rgb_to_grayscale(self.images)
-            whitened_gt = normalize_batch_of_images(gray_gt)
-            self.l2_loss = tf.reduce_mean(tf.square(whitened_generated - whitened_gt))
+            self.l2_loss = tf.reduce_mean(tf.square(self.G - self.images))
 
         self.bn_assigners = tf.group(*batch_norm.assigners)
 
@@ -128,18 +111,8 @@ class DCGAN(object):
         else:
             counter = 0
 
-        global_step = tf.Variable(counter, name='global_step', trainable=False)
-        d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.d_loss, var_list=self.d_vars, global_step=global_step)
-
-        # Learning rate of generator is gradually decreasing.
-        self.g_lr = tf.train.exponential_decay(config.learning_rate,
-                                               global_step=global_step,
-                                               decay_steps=20000,
-                                               decay_rate=0.5,
-                                               staircase=True)
-        g_optim = tf.train.AdamOptimizer(learning_rate=self.g_lr, beta1=config.beta1) \
-                          .minimize(self.g_loss, var_list=self.g_vars)
+        g_optim = tf.train.AdamOptimizer(beta1=config.beta1) \
+                          .minimize(self.l2_loss)
 
         # See that moving average is also updated with g_optim.
         with tf.control_dependencies([g_optim]):
@@ -165,23 +138,15 @@ class DCGAN(object):
                 # Update D and G network
                 tic = time.time()
 
-                _, _, errD_fake, errD_real, errG = self.sess.run([d_optim, g_optim, self.d_loss_fake,
-                                                                  self.d_loss_real, self.g_loss])
-                # Run g_optim more to make sure that d_loss does not go to zero (different from paper)
-                MAX_ADDITIONAL_UPDATES = 5
-                errD_fake_threshold = 1e-3
-                additional_G_runs = 0
-                while errD_fake < errD_fake_threshold and additional_G_runs < MAX_ADDITIONAL_UPDATES:
-                    [errD_fake, _] = self.sess.run([self.d_loss_fake, g_optim])
-                    additional_G_runs += 1
+                _, l2 = self.sess.run([g_optim, self.l2_loss])
 
                 toc = time.time()
 
                 counter += 1
                 duration = toc - tic
-                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), d_loss: %.8f, g_loss: %.8f, G+: %2d"
+                print("Run: %s, Step: [%4d] time: %5.1f, last iter: %1.2f (%1.4f e/s), l2_loss: %.8f"
                     % (run_string, counter, toc - start_time, duration, self.batch_size / duration,
-                       errD_fake+errD_real, errG, additional_G_runs))
+                       l2))
                 if counter % 50 == 0:
                     summary_str = self.sess.run(summary_op)
                     summary_writer.add_summary(summary_str, counter)
@@ -256,14 +221,8 @@ class DCGAN(object):
         tf.image_summary('generator', self.G)
         tf.image_summary('sketch', self.sketches)
         tf.image_summary('images', self.images)
-        tf.scalar_summary('d_loss_fake', self.d_loss_fake)
-        tf.scalar_summary('d_loss_real', self.d_loss_real)
-        tf.scalar_summary('g_loss', self.g_loss)
-        tf.scalar_summary('d_loss', self.d_loss)
-        tf.scalar_summary('g_lr', self.g_lr)
         tf.scalar_summary('l2_loss', self.l2_loss)
         tf.histogram_summary('abstract_representation', self.abstract_representation)
-        tf.histogram_summary('d_h0', self.d_h0)
         if self.z_dim:
             with tf.variable_scope('z_stats') as scope:
                 length = tf.sqrt(tf.reduce_sum(tf.square(self.z)))
