@@ -51,7 +51,7 @@ def main(_):
                                                      shuffle=False, whiten='sketch', color=False, augment=False)
           test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
-          dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False)
+          dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False, z_dim=4, gf_dim=64, c_dim=3)
 
           # Define tensor for visualizing abstract representation.
           Vs = [activations_to_images(x) for x in [dcgan.s0, dcgan.s1, dcgan.s2, dcgan.abstract_representation]]
@@ -67,6 +67,9 @@ def main(_):
 
           coord = tf.train.Coordinator()
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+          # Grid layout for images where all input images occur. Can also be something dependend on batchsize.
+          image_grid_layout = [3, 5]
           try:
               if dcgan.z_dim:
                   np.random.seed(FLAGS.random_seed)
@@ -81,8 +84,7 @@ def main(_):
                   FLAGS.num_samples = 1
 
               batch_sketches = test_sketches.eval()
-              grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
-              save_images(batch_sketches, [grid_size, grid_size], os.path.join(output_folder, 'sketches.png'))
+              save_images(batch_sketches, image_grid_layout, os.path.join(output_folder, 'sketches.png'))
 
               one_chair_different_randoms = np.zeros([FLAGS.batch_size, FLAGS.num_samples,
                                                       dcgan.image_size, dcgan.image_size, 3])
@@ -95,7 +97,7 @@ def main(_):
 
                   img = sess.run(dcgan.G, feed_dict=feed)
                   filename_out = os.path.join(output_folder, '{}_img.png'.format(str(i).zfill(3)))
-                  save_images(img, [grid_size, grid_size], filename_out)
+                  save_images(img, image_grid_layout, filename_out)
                   for j in xrange(FLAGS.batch_size):
                       one_chair_different_randoms[j, i, :, :, :] = img[j, :, :, :]
                   if i == 0:
@@ -129,11 +131,10 @@ def main(_):
                     # Set strongest activation to zero.
                     abstract_rep_hacked[j, :, :, strongest_k_activations] = 0
 
-                grid_size = np.ceil(np.sqrt(FLAGS.batch_size))
                 img = sess.run(dcgan.G_abstract, feed_dict={dcgan.abstract: abstract_rep_hacked})
                 filename_out = os.path.join(output_folder,
                                             '000_img_without_highest_{}_activation.png'.format(str(k).zfill(3)))
-                save_images(img, [grid_size, grid_size], filename_out)
+                save_images(img, image_grid_layout, filename_out)
 
           except tf.errors.OutOfRangeError as e:
               print('Done')

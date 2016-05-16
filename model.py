@@ -67,12 +67,12 @@ class DCGAN(object):
 
         self.image_size = 64
         self.abstract_size = self.image_size // 2 ** 4
-        sketches, images = get_chair_pipeline_training_from_dump('data/all_sketches_and_normalized_depth.tfrecords',
+        if is_train:
+            sketches, images = get_chair_pipeline_training_from_dump('data/all_sketches_and_normalized_depth.tfrecords',
                                                                  self.batch_size,
                                                                  10000, image_size=self.image_size,
                                                                  img_channels=self.c_dim)
-        self.images = images
-        if is_train:
+            self.images = images
             self.sketches = sketches
             if self.z_dim:
                 self.z = tf.random_uniform([self.batch_size, self.z_dim], minval=-1, maxval=1, dtype=tf.float32)
@@ -89,25 +89,26 @@ class DCGAN(object):
             if not is_train:
                 self.G_abstract = self.generator(self.abstract, from_abstract_representation=True)
 
-        with tf.variable_scope('discriminator') as scope:
-            self.D = self.discriminator(self.images, self.sketches)
+        if is_train:
+            with tf.variable_scope('discriminator') as scope:
+                self.D = self.discriminator(self.images, self.sketches)
 
-            self.D_ = self.discriminator(self.G, self.sketches, reuse=True)
+                self.D_ = self.discriminator(self.G, self.sketches, reuse=True)
 
-        with tf.variable_scope('discriminator_loss') as scope:
-            self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
-            self.d_loss_fake = binary_cross_entropy_with_logits(tf.zeros_like(self.D_), self.D_)
-            self.d_loss = self.d_loss_real + self.d_loss_fake
+            with tf.variable_scope('discriminator_loss') as scope:
+                self.d_loss_real = binary_cross_entropy_with_logits(tf.ones_like(self.D), self.D)
+                self.d_loss_fake = binary_cross_entropy_with_logits(tf.zeros_like(self.D_), self.D_)
+                self.d_loss = self.d_loss_real + self.d_loss_fake
 
-        with tf.variable_scope('generator_loss') as scope:
-            self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
+            with tf.variable_scope('generator_loss') as scope:
+                self.g_loss = binary_cross_entropy_with_logits(tf.ones_like(self.D_), self.D_)
 
-        with tf.variable_scope('L2'):
-            gray_generated = tf.image.rgb_to_grayscale(self.G)
-            whitened_generated = normalize_batch_of_images(gray_generated)
-            gray_gt = tf.image.rgb_to_grayscale(self.images)
-            whitened_gt = normalize_batch_of_images(gray_gt)
-            self.l2_loss = tf.reduce_mean(tf.square(whitened_generated - whitened_gt))
+            with tf.variable_scope('L2'):
+                gray_generated = tf.image.rgb_to_grayscale(self.G)
+                whitened_generated = normalize_batch_of_images(gray_generated)
+                gray_gt = tf.image.rgb_to_grayscale(self.images)
+                whitened_gt = normalize_batch_of_images(gray_gt)
+                self.l2_loss = tf.reduce_mean(tf.square(whitened_generated - whitened_gt))
 
         self.bn_assigners = tf.group(*batch_norm.assigners)
 
