@@ -12,12 +12,12 @@ from input_pipeline_rendered_data import make_image_producer
 
 flags = tf.app.flags
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to restore the checkpoints from")
-flags.DEFINE_string("continue_from", None, 'Continues from the given run, None does restore the most current run [None]')
+flags.DEFINE_string("continue_from", '0391', 'Continues from the given run, None does restore the most current run [None]')
 flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given iteration (of the given run), '
                                                      'None does restore the most current iteration [None]')
 flags.DEFINE_integer("random_seed", 42, 'Seed for random vector z [42]')
 flags.DEFINE_integer("num_samples", 64, 'Number of different samples to produce for every sketch [64]')
-flags.DEFINE_string("test_images_folder", 'test_images_folder', 'Folder to pull test images from (all files with .png extension will be processed).')
+flags.DEFINE_string("test_images_folder", 'test_sketches_sorted', 'Folder to pull test images from (all files with .png extension will be processed).')
 FLAGS = flags.FLAGS
 
 
@@ -51,7 +51,7 @@ def main(_):
                                                      shuffle=False, whiten='sketch', color=False, augment=False)
           test_sketches = tf.train.batch([test_sketch_producer], batch_size=FLAGS.batch_size)
 
-          dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False, z_dim=4, gf_dim=64, c_dim=3)
+          dcgan = DCGAN(sess, batch_size=FLAGS.batch_size, is_train=False, z_dim=0, gf_dim=128, c_dim=1)
 
           # Define tensor for visualizing abstract representation.
           Vs = [activations_to_images(x) for x in [dcgan.s0, dcgan.s1, dcgan.s2, dcgan.abstract_representation]]
@@ -80,7 +80,7 @@ def main(_):
                   batch_z_all = np.zeros(batch_z_shape)
                   batch_z_all[:, :, :] = batch_z
               else:
-                  print("Reducing number of samples to 1, since to random vector is needed.")
+                  print("Reducing number of samples to 1, since no random vector is needed.")
                   FLAGS.num_samples = 1
 
               batch_sketches = test_sketches.eval()
