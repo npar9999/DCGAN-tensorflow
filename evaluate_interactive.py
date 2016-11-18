@@ -189,14 +189,14 @@ def main(_):
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
         dcgan = DCGAN(sess, batch_size=1, is_train=False)
         full_sketch = tf.placeholder(tf.float32, [512, 512])
-        small_sketch = tf.image.resize_area(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
+        small_sketch = tf.image.resize_area(tf.reshape(full_sketch, [1, 512, 512, 1]), [output_size, output_size])
         small_sketch = preprocess(small_sketch, output_size, whiten='sketch', color=False, augment=False)
         small_sketch = tf.transpose(small_sketch, [1, 0, 2])
         small_sketch = tf.reshape(small_sketch, [1, output_size, output_size, 1])
 
         # Directly feed sketch
         # test_sketch = make_image_producer(['test_sketches/part_of_recolor_experiment.png'], 10, 'rendered_producer',
-        #                                   64,
+        #                                   output_size,
         #                                   shuffle=False, filename_seed=1, whiten='sketch', color=False,
         #                                   augment=False)
         # test_sketch = tf.train.batch([test_sketch], batch_size=1)
