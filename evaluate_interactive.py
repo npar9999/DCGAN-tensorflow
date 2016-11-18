@@ -15,7 +15,7 @@ import scipy.misc, random, glob, re
 flags = tf.app.flags
 
 flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to restore the checkpoints from")
-flags.DEFINE_string("continue_from", None, 'Continues from the given run, None does restore the most current run [None]')
+flags.DEFINE_string("continue_from", '039', 'Continues from the given run, None does restore the most current run [None]')
 flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given iteration (of the given run), '
                                                      'None does restore the most current iteration [None]')
 FLAGS = flags.FLAGS
@@ -150,7 +150,7 @@ class SketchScreen:
                     if not self.showing_help:
                         if pressed[K_l]:
                             # l: Loads initial image
-                            filename = random.sample(['part_of_recolor_experiment.png'], 1)
+                            filename = random.sample(['c.png'], 1)
                             loaded_img = pygame.transform.scale(pygame.image.load('test_sketches/' + filename[0]),
                                                          (512, 512))
                             self.screen.blit(loaded_img, (0,0))

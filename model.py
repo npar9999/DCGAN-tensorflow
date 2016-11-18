@@ -9,8 +9,8 @@ from input_pipeline_rendered_data import get_chair_pipeline_training_from_dump
 class DCGAN(object):
     def __init__(self, sess,
                  batch_size=64, sample_size = 64, image_shape=[64, 64, 3],
-                 y_dim=None, z_dim=0, gf_dim=128, df_dim=64,
-                 gfc_dim=512, dfc_dim=1024, c_dim=1, is_train=True):
+                 y_dim=None, z_dim=4, gf_dim=64, df_dim=64,
+                 gfc_dim=512, dfc_dim=1024, c_dim=3, is_train=True):
         """
 
         Args:
