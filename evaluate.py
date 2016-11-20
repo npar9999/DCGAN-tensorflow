@@ -5,9 +5,11 @@ import os
 import numpy as np
 import tensorflow as tf
 import glob
+import scipy
 
+from scipy import ndimage as ndi
 from model import DCGAN
-from utils import pp, save_images
+from utils import pp, save_images, imread
 from input_pipeline_rendered_data import make_image_producer
 
 flags = tf.app.flags
@@ -17,7 +19,11 @@ flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given i
                                                      'None does restore the most current iteration [None]')
 flags.DEFINE_integer("random_seed", 42, 'Seed for random vector z [42]')
 flags.DEFINE_integer("num_samples", 64, 'Number of different samples to produce for every sketch [64]')
-flags.DEFINE_string("test_images_folder", 'test_sketches_sorted', 'Folder to pull test images from (all files with .png extension will be processed).')
+flags.DEFINE_string("test_images_folder", 'test_sketches_depth_with_gt',
+                    'Folder to pull test images from (all files with .png extension will be processed).')
+flags.DEFINE_string("gt_images_folder", 'gt_depth',
+                    'Folder with ground truth images (assumed to have the same name or prefix.')
+
 FLAGS = flags.FLAGS
 
 
@@ -45,7 +51,7 @@ def main(_):
 
 
     with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
-          test_files = sorted(glob.glob('test_sketches_sorted/*.png'))
+          test_files = sorted(glob.glob(FLAGS.test_images_folder + '/*.png'))
           FLAGS.batch_size = len(test_files)
           test_sketch_producer = make_image_producer(test_files, 1, 'test_sketches', 64,
                                                      shuffle=False, whiten='sketch', color=False, augment=False)
@@ -60,7 +66,7 @@ def main(_):
           tf.initialize_all_variables().run()
           loaded_iteration_string = dcgan.load(used_checkpoint_dir, FLAGS.continue_from_iteration)
 
-          output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, 'sorted_test_images', loaded_iteration_string)
+          output_folder = os.path.join(FLAGS.checkpoint_dir, run_folder, FLAGS.test_images_folder, loaded_iteration_string)
           if not os.path.exists(output_folder):
               os.makedirs(output_folder)
           print('Writing output to ' + output_folder + '/*.png')
@@ -69,7 +75,8 @@ def main(_):
           threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
           # Grid layout for images where all input images occur. Can also be something dependend on batchsize.
-          image_grid_layout = [3, 5]
+          grid_size = np.ceil(np.sqrt(dcgan.batch_size))
+          image_grid_layout = [grid_size, grid_size]
           try:
               if dcgan.z_dim:
                   np.random.seed(FLAGS.random_seed)
@@ -107,12 +114,37 @@ def main(_):
                       abstract_rep = activations[0]
                       activations = activations[1:]
 
+              mse_file = open(os.path.join(output_folder, 'mse.csv'), 'w')
+
 
               for j, file_name in enumerate(test_files):
                   grid_size = np.ceil(np.sqrt(FLAGS.num_samples))
                   name_without_ext = os.path.splitext(os.path.basename(file_name))[0]
                   filename_out = os.path.join(output_folder, '{}_different_randoms.png'.format(name_without_ext))
+                  # Save images for same input.
                   save_images(one_chair_different_randoms[j, :, :, :, :], [grid_size, grid_size], filename_out)
+
+                  if FLAGS.gt_images_folder and not dcgan.z_dim:
+                      # Compute MSE to ground truth image if exists.
+                      # TODO(smoser): Load gt image in compatible way for subtracting.
+                      gt_file = os.path.join(FLAGS.gt_images_folder,
+                                             name_without_ext.replace('sketch', 'depth.png0001') + '.png')
+                      if os.path.exists(gt_file):
+                          gt = ndi.imread(gt_file).astype(np.float)[:,:,0] / 255
+                          candidate = np.reshape(one_chair_different_randoms[j, :, :, :, 0],
+                                                 [dcgan.image_size, dcgan.image_size])
+                          candidate = (candidate + 1) / 2
+                          output_path_error = os.path.join(output_folder,
+                                                           '{}_squared_error.png'.format(name_without_ext))
+                          squared_error = np.square(gt - candidate)
+                          scipy.misc.imsave(output_path_error, squared_error)
+                          mse = np.mean(squared_error)
+                          mse_file.write('{},{:.3}\n'.format(name_without_ext, mse))
+                          output_path_candidate = os.path.join(output_folder,
+                                                               '{}_candidate.png'.format(name_without_ext))
+                          scipy.misc.imsave(output_path_candidate, candidate)
+
+
 
                   # Visualize abstract representation.
                   for idx, (_, channel_count) in enumerate(Vs):
@@ -120,7 +152,7 @@ def main(_):
                       filename_out = os.path.join(output_folder, '{}_layer_{}.png'.format(name_without_ext, idx))
                       save_images(activations[idx][j, :, :, :], [grid_size, grid_size], filename_out,
                                   invert=False, channels=1)
-
+              mse_file.close()
               for k in [1, 5, 10, 20, 50, 100, 200, 300, 400, 500]:
                 abstract_rep_hacked = np.copy(abstract_rep)
                 for j, file_name in enumerate(test_files):
