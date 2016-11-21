@@ -7,7 +7,6 @@ import tensorflow as tf
 from model import DCGAN
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-import matplotlib.cm as cm
 import os, threading, time
 from input_pipeline_rendered_data import preprocess, make_image_producer
 import scipy.misc, random, glob, re
@@ -299,14 +298,15 @@ def main(_):
                 if dcgan.z_dim:
                     z = np.reshape(np.asarray([slider.val * 10 for slider in output_screen.sliders], dtype=np.float32), [1, 4])
                     feed[dcgan.z] = z
-
+                start = time.clock()
                 img = sess.run(dcgan.G, feed_dict=feed)
-
+                end = time.clock()
+                
                 unnormed_img = np.reshape(img, [64, 64, dcgan.c_dim])
                 unnormed_img = (unnormed_img + 1) / 2
 
                 output_screen.update_content(unnormed_small_sketch, unnormed_img)
-                print('Updated image')
+                print('Updated image, computed in {:.5}s'.format(end - start))
                 if sc.save:
                     sc.save = False
                     files = sorted(glob.glob(ckpt_name + '*.png'))
