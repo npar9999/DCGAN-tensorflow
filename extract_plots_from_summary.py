@@ -22,8 +22,8 @@ class GraphGatherer:
   gen_graph = None
   dis_graph = None
 
-  def __init__(self, file, acc):
-    self.output_folder = os.path.dirname(file)
+  def __init__(self, output_folder, acc):
+    self.output_folder = output_folder
     scalars = acc.Tags()['scalars']
     if 'l2_loss' in scalars:
       self.l2_graph = [x.value for x in acc.Scalars('l2_loss')]
@@ -48,14 +48,14 @@ class GraphGatherer:
     plt.figure(figsize=(15,7))
     ax = plt.gca()
     ax.plot(idx_graph, l2_graph, label="L2 error")
-    plt.savefig(output_name + '.png')
+    plt.savefig(os.path.join(self.output_folder, output_name + '.png'))
 
   def dump_plot(self, output_name, do_smooth=False, smoothing_fraction=1/8):
     if self.gen_graph is None:
       return
     if do_smooth:
       smoothing = int(len(self.idx_graph) * smoothing_fraction)
-      idx_graph = self.idx_graph[smoothing:]
+      idx_graph = self.idx_graph[:-smoothing]
       gen_graph = smooth(self.gen_graph, smoothing)
       dis_graph = smooth(self.dis_graph, smoothing)
     else:
@@ -69,12 +69,12 @@ class GraphGatherer:
     ax2 = ax.twinx()
     ax2.plot(idx_graph, dis_graph, label="discrimin score", color='green')
     ax2.legend(loc='upper right')
-    plt.legend(loc='upper left')
+    ax.legend(loc='upper left')
     plt.savefig(os.path.join(self.output_folder, output_name + '.png'))
 
 flags = tf.app.flags
 flags.DEFINE_string('summary_dir', 'summary', 'Folder where runs are placed.')
-flags.DEFINE_string("run", '039_rendered', 'Name of the run you want to extract from.')
+flags.DEFINE_string("run", '037', 'Name of the run you want to extract from.')
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -82,14 +82,14 @@ def main(_):
   if not runs:
     raise Exception('No runs available!')
   if FLAGS.run is None:
-    file = os.path.join(FLAGS.summary_dir, str(runs[-1]).zfill(3))
+    folder = os.path.join(FLAGS.summary_dir, str(runs[-1]).zfill(3))
   else:
-    file = os.path.join(FLAGS.summary_dir, FLAGS.run)
+    folder = os.path.join(FLAGS.summary_dir, FLAGS.run)
 
-  acc = ea.EventAccumulator(file)
+  acc = ea.EventAccumulator(folder)
   acc.Reload()
   print(acc.Tags())
-  gatherer = GraphGatherer(file, acc)
+  gatherer = GraphGatherer(folder, acc)
   gatherer.dump_l2_plot('l2')
   gatherer.dump_l2_plot('l2_smoothed', True, smoothing_fraction=1/20)
   gatherer.dump_plot('loss')
