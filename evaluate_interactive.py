@@ -13,11 +13,14 @@ import scipy.misc, random, glob, re
 
 flags = tf.app.flags
 
-flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered", "Directory name to restore the checkpoints from")
-flags.DEFINE_string("continue_from", '039', 'Continues from the given run, None does restore the most current run [None]')
+flags.DEFINE_string("checkpoint_dir", "checkpoint_sketches_to_rendered",
+                    "Directory name to restore the checkpoints from")
+flags.DEFINE_string("continue_from", '039',
+                    'Continues from the given run, None does restore the most current run [None]')
 flags.DEFINE_string("continue_from_iteration", None, 'Continues from the given iteration (of the given run), '
                                                      'None does restore the most current iteration [None]')
 FLAGS = flags.FLAGS
+
 
 class MouseButtons:
     LEFT = 1
@@ -25,6 +28,7 @@ class MouseButtons:
     RIGHT = 3
     WHEEL_UP = 4
     WHEEL_DOWN = 5
+
 
 class UndoStack:
     def __init__(self, screen, size=20):
@@ -39,7 +43,7 @@ class UndoStack:
 
     def restore_current_idx(self):
         s = pygame.image.fromstring(self.undo_stack[self.undo_idx % self.undo_size], self.screen.get_size(), 'RGBA')
-        self.screen.blit(s, (0,0))
+        self.screen.blit(s, (0, 0))
 
     def pop_forward(self):
         self.undo_idx += 1
@@ -54,13 +58,12 @@ class UndoStack:
 
 
 class SketchScreen:
-
     def __init__(self, title):
         pygame.init()
         self.draw_on = False
         self.last_pos = (0, 0)
         self.radius = 5
-        self.screen = pygame.display.set_mode((512,512))
+        self.screen = pygame.display.set_mode((512, 512))
         pygame.display.set_caption(title + ', press H for help')
         self.strength = 125
         self.undo = UndoStack(self.screen)
@@ -113,16 +116,14 @@ class SketchScreen:
 
         self.showing_help = not self.showing_help
 
-
     def roundline(self, srf, color, start, end, radius=1):
-        dx = end[0]-start[0]
-        dy = end[1]-start[1]
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
         distance = max(abs(dx), abs(dy))
         for i in range(distance):
-            x = int(start[0]+float(i)/distance*dx)
-            y = int(start[1]+float(i)/distance*dy)
+            x = int(start[0] + float(i) / distance * dx)
+            y = int(start[1] + float(i) / distance * dy)
             pygame.draw.circle(srf, color, (x, y), radius)
-
 
     def brush_at(self, pos, do_roundline=False):
         # color = screen.get_at(pos)
@@ -130,11 +131,10 @@ class SketchScreen:
         color = pygame.Color(self.strength, self.strength, self.strength)
         pygame.draw.circle(self.screen, color, pos, self.radius)
         if do_roundline:
-            self.roundline(self.screen, color, pos, self.last_pos,  self.radius)
+            self.roundline(self.screen, color, pos, self.last_pos, self.radius)
 
     def get_content_as_np_array(self):
-        return pygame.surfarray.array3d(self.screen)[:,:,0].astype(np.float32) / (32.0 * 8)
-
+        return pygame.surfarray.array3d(self.screen)[:, :, 0].astype(np.float32) / (32.0 * 8)
 
     def enter_loop(self):
         try:
@@ -149,10 +149,10 @@ class SketchScreen:
                     if not self.showing_help:
                         if pressed[K_l]:
                             # l: Loads initial image
-                            filename = random.sample(['c.png'], 1)
+                            filename = random.sample(['1aeb17f89e1bea954c6deb9ede0648df_r_036_sketch_64x64.png'], 1)
                             loaded_img = pygame.transform.scale(pygame.image.load('test_sketches/' + filename[0]),
-                                                         (512, 512))
-                            self.screen.blit(loaded_img, (0,0))
+                                                                (512, 512))
+                            self.screen.blit(loaded_img, (0, 0))
                             self.undo.push()
                         elif pressed[K_c]:
                             # c: Clears screen
@@ -269,6 +269,26 @@ def main(_):
         draw_thread.start()
 
         output_screen = OutputScreen(64, dcgan.z_dim, dcgan.c_dim)
+        param_stats = tf.contrib.tfprof.model_analyzer.print_model_analysis(
+                tf.get_default_graph(),
+                tfprof_options=tf.contrib.tfprof.model_analyzer.
+                    TRAINABLE_VARS_PARAMS_STAT_OPTIONS)
+        print('total_params: %d\n' % param_stats.total_parameters)
+        tf.contrib.tfprof.model_analyzer.print_model_analysis(
+                tf.get_default_graph(),
+                tfprof_options=tf.contrib.tfprof.model_analyzer.FLOAT_OPS_OPTIONS)
+
+        # Get timings of one sample run
+        run_metadata = tf.RunMetadata()
+        _ = sess.run(dcgan.G,
+                     options=tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE),
+                     run_metadata=run_metadata,
+                     feed_dict = {dcgan.sketches: np.zeros([1, 64, 64, 1], dtype=np.float32),
+                                  dcgan.z: np.zeros([1, 4], dtype=np.float32)})
+        tf.contrib.tfprof.model_analyzer.print_model_analysis(
+                tf.get_default_graph(),
+                run_meta=run_metadata,
+                tfprof_options=tf.contrib.tfprof.model_analyzer.PRINT_ALL_TIMING_MEMORY)
 
         while draw_thread.is_alive:
             try:
@@ -282,8 +302,10 @@ def main(_):
                     x_padding_needed = 512 - full_sketch_resized.shape[0]
                     y_padding_needed = 512 - full_sketch_resized.shape[1]
                     full_sketch_final = np.pad(full_sketch_resized,
-                                               ((int(np.floor(x_padding_needed / 2)), int(np.ceil(x_padding_needed / 2))),
-                                                (int(np.floor(y_padding_needed / 2)), int(np.ceil(y_padding_needed / 2)))),
+                                               ((int(np.floor(x_padding_needed / 2)),
+                                                 int(np.ceil(x_padding_needed / 2))),
+                                                (int(np.floor(y_padding_needed / 2)),
+                                                 int(np.ceil(y_padding_needed / 2)))),
                                                'constant', constant_values=0)
                 else:
                     # Empty dummy image
@@ -296,12 +318,13 @@ def main(_):
 
                 feed = {dcgan.sketches: s}
                 if dcgan.z_dim:
-                    z = np.reshape(np.asarray([slider.val * 10 for slider in output_screen.sliders], dtype=np.float32), [1, 4])
+                    z = np.reshape(np.asarray([slider.val * 10 for slider in output_screen.sliders], dtype=np.float32),
+                                   [1, 4])
                     feed[dcgan.z] = z
                 start = time.clock()
                 img = sess.run(dcgan.G, feed_dict=feed)
                 end = time.clock()
-                
+
                 unnormed_img = np.reshape(img, [64, 64, dcgan.c_dim])
                 unnormed_img = (unnormed_img + 1) / 2
 
