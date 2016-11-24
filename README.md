@@ -1,11 +1,19 @@
-DCGAN in Tensorflow
+CDCGAN for sketch based image synthesis in Tensorflow
 ====================
 
-Tensorflow implementation of [Deep Convolutional Generative Adversarial Networks](http://arxiv.org/abs/1511.06434) which is a stabilize Generative Adversarial Networks. The referenced torch code can be found [here](https://github.com/soumith/dcgan.torch).
+A network architecture to train a neuronal network to generate images from a
+guidance image, e. g. a human made sketch.
+Ambiguties left open from the sketch, such as hue and saturation, are defined through random parameters supplied.
+The approach builds on top of DCGANs as proposed by Radford et al. in their work 
+[Deep Convolutional Generative Adversarial Networks](https://arxiv.org/abs/1511.06434).
+Architecture of the discriminator:
 
-![alt tag](DCGAN.png)
+![discriminator](discriminator_architecture.png)
 
-*To avoid the fast convergence of D (discriminator) network, G (generatior) network is updatesd twice for each D network update which is a different from original paper.*
+Architecture of the generator:
+
+![generator to abstract](generator_to_abstract_architecture.png)
+![generator to shaded](generator_to_shaded_architecture.png)
 
 
 Prerequisites
@@ -16,42 +24,14 @@ Prerequisites
 - [SciPy](http://www.scipy.org/install.html)
 
 
-Usage
------
-
-First, download dataset with:
-
-    $ mkdir data
-    $ python download.py --datasets celebA
-
-To train a model with celebA dataset:
-
-    $ python main.py --dataset celebA --is_train True
-
-To test with a existing model:
-
-    $ python main.py --dataset celebA
-
-Or, you can use your own dataset by:
-
-    $ mkdir data/DATASET_NAME
-    ... add images to data/DATASET_NAME ...
-    $ python main.py --dataset DATASET_NAME --is_train True
-    $ python main.py --dataset DATASET_NAME
-
-
 Results
 -------
 
-![result](https://media.giphy.com/media/l3nW2iYprSsXtagYo/giphy.gif)
+Several sketches using all the same random parameters.
 
-After 6th epoch:
+<img src="sketches.png" width="49%">
+<img src="img_037.png" width="49%">
 
-![result3](assets/result_16_01_04_.png)
+Same sketch using different random parameters.
 
-(in progress)
-
-Author
-------
-
-Taehoon Kim / [@carpedm20](http://carpedm20.github.io/)
+![Using different random parameters](02e_hand_traced_different_randoms.png)
