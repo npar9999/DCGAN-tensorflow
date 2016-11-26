@@ -332,15 +332,18 @@ def main(_):
                 print('Updated image, computed in {:.5}s'.format(end - start))
                 if sc.save:
                     sc.save = False
-                    files = sorted(glob.glob(ckpt_name + '*.png'))
+                    path = os.path.join(used_checkpoint_dir, 'interactive')
+                    if not os.path.exists(path):
+                        os.makedirs(path)
+                    files = sorted(glob.glob(os.path.join(path, ckpt_name + '*.png')))
                     if files:
                         current = int(re.search('_n_(\d)+', files[-1]).group(1)) + 1
                     else:
                         current = 0
-                    path = ckpt_name + '_n_' + str(current).zfill(3)
-                    scipy.misc.imsave(path + '_sketch.png', full_sketch_final)
-                    scipy.misc.imsave(path + '_sketch_small.png', np.reshape(unnormed_small_sketch, [64, 64]))
-                    scipy.misc.imsave(path + '_output.png', np.reshape(unnormed_img, [64, 64]))
+                    path_with_basename = os.path.join(path, ckpt_name + '_n_' + str(current).zfill(3))
+                    scipy.misc.imsave(path_with_basename + '_sketch.png', full_sketch_final)
+                    scipy.misc.imsave(path_with_basename + '_sketch_small.png', np.reshape(unnormed_small_sketch, [64, 64]))
+                    scipy.misc.imsave(path_with_basename + '_output.png', unnormed_img)
                     print('Saved to ' + path)
                 plt.pause(0.5)
             except pygame.error:
