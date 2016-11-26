@@ -345,7 +345,7 @@ def main(_):
                     else:
                         current = 0
                     path_with_basename = os.path.join(path, ckpt_name + '_n_' + str(current).zfill(3))
-                    scipy.misc.imsave(path_with_basename + '_sketch.png', np.transpose(full_sketch_final, [1, 0]))
+                    scipy.misc.imsave(path_with_basename + '_sketch.png', np.transpose(A, [1, 0]))
                     scipy.misc.imsave(path_with_basename + '_sketch_small.png', np.reshape(unnormed_small_sketch, [64, 64]))
                     scipy.misc.imsave(path_with_basename + '_output.png', unnormed_img)
                     print('Saved to ' + path_with_basename)
