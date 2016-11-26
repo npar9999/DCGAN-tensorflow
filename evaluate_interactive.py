@@ -164,16 +164,19 @@ class SketchScreen:
                             self.undo.pop_backward()
                         elif pressed[K_x]:
                             self.undo.pop_forward()
-                        elif pressed[K_KP_PLUS] or pressed[K_PLUS]:
+                        elif pressed[K_KP_PLUS] or pressed[K_PLUS] or pressed[K_q]:
                             self.radius = min(self.radius + 3, 15)
                             self.set_paint_cursor(self.radius)
-                        elif pressed[K_KP_MINUS] or pressed[K_MINUS]:
+                        elif pressed[K_KP_MINUS] or pressed[K_MINUS] or pressed[K_w]:
                             self.radius = max(self.radius - 3, 2)
                             self.set_paint_cursor(self.radius)
                         else:
                             for x in range(K_KP1, K_KP9 + 1):
                                 if pressed[x]:
                                     self.strength = (x - K_KP0) * 255 // 9
+                            for x in range(K_1, K_9 + 1):
+                                if pressed[x]:
+                                    self.strength = (x - K_0) * 255 // 9
 
                 elif not self.showing_help:
                     if e.type == pygame.MOUSEBUTTONDOWN:
@@ -245,6 +248,7 @@ def main(_):
         # TODO: Scale full_sketch to fill out image.
         small_sketch = tf.image.resize_area(tf.reshape(full_sketch, [1, 512, 512, 1]), [64, 64])
         small_sketch = preprocess(small_sketch, 64, whiten='sketch', color=False, augment=False)
+        # Rotate: by 90 degrees.
         small_sketch = tf.transpose(small_sketch, [1, 0, 2])
         small_sketch = tf.reshape(small_sketch, [1, 64, 64, 1])
 
@@ -335,16 +339,16 @@ def main(_):
                     path = os.path.join(used_checkpoint_dir, 'interactive')
                     if not os.path.exists(path):
                         os.makedirs(path)
-                    files = sorted(glob.glob(os.path.join(path, ckpt_name + '*.png')))
+                    files = sorted(glob.glob(os.path.join(path, '*.png')))
                     if files:
-                        current = int(re.search('_n_(\d)+', files[-1]).group(1)) + 1
+                        current = int(re.search('_n_(\d+)_', files[-1]).group(1)) + 1
                     else:
                         current = 0
                     path_with_basename = os.path.join(path, ckpt_name + '_n_' + str(current).zfill(3))
-                    scipy.misc.imsave(path_with_basename + '_sketch.png', full_sketch_final)
+                    scipy.misc.imsave(path_with_basename + '_sketch.png', np.transpose(full_sketch_final, [1, 0]))
                     scipy.misc.imsave(path_with_basename + '_sketch_small.png', np.reshape(unnormed_small_sketch, [64, 64]))
                     scipy.misc.imsave(path_with_basename + '_output.png', unnormed_img)
-                    print('Saved to ' + path)
+                    print('Saved to ' + path_with_basename)
                 plt.pause(0.5)
             except pygame.error:
                 print('Pygame stoped, shutting down.')
