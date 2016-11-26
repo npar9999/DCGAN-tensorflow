@@ -39,10 +39,10 @@ class UndoStack:
 
     def push(self):
         self.undo_idx += 1
-        self.undo_stack[self.undo_idx % self.undo_size] = pygame.image.tostring(self.screen, "RGBA")
+        self.undo_stack[self.undo_idx % self.undo_size] = pygame.image.tostring(self.screen, "RGB")
 
     def restore_current_idx(self):
-        s = pygame.image.fromstring(self.undo_stack[self.undo_idx % self.undo_size], self.screen.get_size(), 'RGBA')
+        s = pygame.image.fromstring(self.undo_stack[self.undo_idx % self.undo_size], self.screen.get_size(), 'RGB')
         self.screen.blit(s, (0, 0))
 
     def pop_forward(self):
