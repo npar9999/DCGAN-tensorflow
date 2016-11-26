@@ -174,6 +174,9 @@ class SketchScreen:
                             for x in range(K_KP1, K_KP9 + 1):
                                 if pressed[x]:
                                     self.strength = (x - K_KP0) * 255 // 9
+                            for x in range(K_1, K_9 + 1):
+                                if pressed[x]:
+                                    self.strength = (x - K_0) * 255 // 9
 
                 elif not self.showing_help:
                     if e.type == pygame.MOUSEBUTTONDOWN:
