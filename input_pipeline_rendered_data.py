@@ -1,15 +1,18 @@
-import re, os
-import tensorflow as tf
-import numpy as np
 import glob
+import os
+import re
+
+import tensorflow as tf
+
 
 def get_files(folder, file_regexp):
   files = []
   for root, dirnames, filenames in os.walk(folder):
-      for filename in filenames:
-        if re.match(file_regexp, filename):
-          files.append(os.path.join(root, filename))
+    for filename in filenames:
+      if re.match(file_regexp, filename):
+        files.append(os.path.join(root, filename))
   return sorted(files)
+
 
 def get_files_cached(folder, type, regexp, reload=False):
   f = os.path.join(folder, '{}_files.txt'.format(type))
@@ -56,11 +59,11 @@ def preprocess(image_tensor, img_size, whiten='default', color=False,
     # (randomly distributed left or right), then padding zeros from the left.
   if augment_translation:
     max_x_offset = 2
-    out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed=seed*2)
+    out = tf.image.random_crop(out, [img_size, img_size - max_x_offset], seed=seed * 2)
     out = tf.image.pad_to_bounding_box(out, 0, max_x_offset, img_size, img_size)
   if augment_color:
-    out = tf.image.random_hue(out, 0.5, seed=seed*3)
-    out = tf.image.random_saturation(out, 0.0, 1.5, seed=seed*4)
+    out = tf.image.random_hue(out, 0.5, seed=seed * 3)
+    out = tf.image.random_saturation(out, 0.0, 1.5, seed=seed * 4)
   if whiten == 'default':
     # Bring to range [-1, 1]
     out = tf.cast(out, tf.float32) * (2. / 255) - 1
@@ -86,9 +89,10 @@ def make_image_producer(files, epochs, name, img_size, shuffle, whiten, color, f
 
 
 def get_chair_images_and_sketches(epochs, img_size, depth_files, sketch_files,
-                       shuffle=True, augment_color=False, filename_seed=233):
+                                  shuffle=True, augment_color=False, filename_seed=233):
   img = make_image_producer(depth_files, epochs, 'rendered_producer', img_size,
-                            shuffle, filename_seed=filename_seed, whiten='default', color=True, augment_color=augment_color)
+                            shuffle, filename_seed=filename_seed, whiten='default', color=True,
+                            augment_color=augment_color)
   sketches = make_image_producer(sketch_files, epochs, 'sketch_producer', img_size,
                                  shuffle, filename_seed=filename_seed, whiten='sketch', color=False)
   return sketches, img
@@ -119,6 +123,7 @@ def get_chair_pipeline_training(batch_size, epochs):
   size_suffix = str(img_size) + 'x' + str(img_size)
   return get_chair_pipeline(batch_size, epochs, img_size, get_rendered_files(chair_folder, size_suffix),
                             get_sketch_files(sketch_folder, size_suffix))
+
 
 def get_chair_pipeline_training_recolor(batch_size, epochs):
   img_size = 64
@@ -155,7 +160,7 @@ def get_chair_pipeline_training_from_dump(dump_file, batch_size, epochs,
       filename_queue = tf.train.string_input_producer(all_files, num_epochs=epochs)
 
       example_list = [read_tensor_record(filename_queue, image_size, img_channels)
-                  for _ in range(read_threads)]
+                      for _ in range(read_threads)]
 
       return tf.train.shuffle_batch_join(example_list, batch_size=batch_size,
                                          capacity=min_queue_size + batch_size * 16,
